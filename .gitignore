@@ -169,3 +169,14 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# others
+public/audios/*
+public/transcriptions/*
+!public/.gitkeep
+!public/audios/.gitkeep
+!public/transcriptions/.gitkeep
+
+logs/*
+!logs/.gitkeep

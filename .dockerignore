@@ -1,0 +1,39 @@
+# Arquivos de sistema
+.git
+.gitignore
+.env
+.env.*
+
+# Arquivos Python
+__pycache__
+*.pyc
+**/*.pyc
+*.pyo
+*.pyd
+.Python
+*.py[cod]
+*$py.class
+.pytest_cache
+
+# Diretórios de ambiente virtual
+venv
+env
+.env
+.venv
+ENV
+
+# Diretórios de data
+/public/audios/*
+/public/transcriptions/*
+/logs/*
+*.log
+
+# Outros
+.DS_Store
+README.md
+LICENSE
+*.md
+.idea
+.vscode
+logs/
+public/

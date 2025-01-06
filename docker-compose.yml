@@ -1,0 +1,71 @@
+# docker-compose.yml
+services:
+  transcriber:
+    build: .
+    ports:
+      - "8000:8000"
+    security_opt:
+      - no-new-privileges:true
+    init: true     # Melhor gestão de processos
+    volumes:
+      - type: bind
+        source: ./public/audios
+        target: /app/audios
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./public/transcriptions
+        target: /app/transcriptions
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./logs
+        target: /app/logs
+        bind:
+          create_host_path: true
+      - type: volume
+        source: huggingface_cache
+        target: /home/appuser/.cache/huggingface
+        volume:
+          nocopy: true
+      - type: volume
+        source: matplotlib_config
+        target: /home/appuser/.config/matplotlib
+        volume:
+          nocopy: true
+      # volume para desenvolvimento
+      - ./src:/app/src
+      - ./main.py:/app/main.py
+    user: appuser  # Garantir que rode como appuser
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      - VERSION_MODEL=${VERSION_MODEL:-base}
+      - FORCE_CPU=${FORCE_CPU:-true}
+      - AUDIOS_DIR=/app/audios
+      - TRANSCRIPTIONS_DIR=/app/transcriptions
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=/app/logs/app.log
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/home/appuser/.cache/huggingface
+      - MPLCONFIGDIR=/home/appuser/.config/matplotlib
+      - HOME=/home/appuser
+      - XDG_CACHE_HOME=/home/appuser/.cache
+      - XDG_CONFIG_HOME=/home/appuser/.config
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  huggingface_cache:
+    name: huggingface_cache
+  matplotlib_config:
+    name: matplotlib_config
