@@ -18,7 +18,9 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="API de Transcrição de Áudio",
         description="API para transcrição de áudio usando WhisperX",
-        version="1.0.0"
+        version="1.0.0",
+        docs_url="/docs",
+        redoc_url="/redoc"
     )
 
     app.add_middleware(
