@@ -15,7 +15,22 @@ class TranscriptionService:
     def __init__(self, config: AppConfig):
         self.config = config
         self.transcriber = None
-        self.tasks_file = Path(self.config.transcriptions_dir) / "tasks.json"
+        
+        # Usar diretório temporário se não conseguir escrever no diretório configurado
+        try:
+            self.tasks_file = Path(self.config.transcriptions_dir) / "tasks.json"
+            # Testar se consegue escrever
+            self.tasks_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.tasks_file, 'a') as f:
+                pass
+        except (PermissionError, OSError):
+            # Usar diretório temporário
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir()) / "transcription_tasks"
+            temp_dir.mkdir(exist_ok=True)
+            self.tasks_file = temp_dir / "tasks.json"
+            logger.warning(f"Usando diretório temporário para tasks: {self.tasks_file}")
+        
         self._tasks: Dict[str, TranscriptionTask] = {}
         self._load_tasks()
         self._ensure_directories()
@@ -28,6 +43,12 @@ class TranscriptionService:
         if 'completed_at' in task_data and task_data['completed_at']:
             task_data['completed_at'] = datetime.fromisoformat(task_data['completed_at'])
         return TranscriptionTask(**task_data)
+
+    def _serialize_datetime(self, obj):
+        """Serializa objetos datetime para JSON"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
 
     def _load_tasks(self):
         """Carrega tarefas do arquivo JSON"""
@@ -47,6 +68,9 @@ class TranscriptionService:
     def _save_tasks(self):
         """Salva tarefas no arquivo JSON"""
         try:
+            # Garantir que o diretório existe
+            self.tasks_file.parent.mkdir(parents=True, exist_ok=True)
+            
             tasks_data = {
                 task_id: task.dict(exclude_none=True)
                 for task_id, task in self._tasks.items()
@@ -62,7 +86,11 @@ class TranscriptionService:
             logger.info(f"Tarefas salvas com sucesso: {len(self._tasks)} tarefas")
         except Exception as e:
             logger.error(f"Erro ao salvar tarefas: {str(e)}")
-            logger.error(f"Conteúdo que tentou salvar: {tasks_data}")
+            logger.error(f"Arquivo: {self.tasks_file}")
+            logger.error(f"Diretório existe: {self.tasks_file.parent.exists()}")
+            logger.error(f"Permissões: {oct(self.tasks_file.parent.stat().st_mode)[-3:]}")
+            if 'tasks_data' in locals():
+                logger.error(f"Conteúdo que tentou salvar: {tasks_data}")
 
     def _ensure_directories(self):
         """Garante que os diretórios necessários existem"""
