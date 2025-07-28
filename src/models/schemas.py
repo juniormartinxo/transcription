@@ -20,6 +20,8 @@ class TranscriptionRequest(BaseModel):
     output_format: str = Field(default="txt", description="Formato de saída desejado")
     force_cpu: bool = Field(default=True, description="Força o uso de CPU")
     version_model: str = Field(default="turbo", description="Nome do modelo a ser usado")
+    include_timestamps: bool = Field(default=True, description="Incluir marcações de tempo na transcrição")
+    include_speaker_diarization: bool = Field(default=True, description="Incluir distinção de falantes na transcrição")
 
 class TranscriptionTask(BaseModel):
     task_id: str
