@@ -25,7 +25,7 @@ services:
           create_host_path: true
       - type: volume
         source: huggingface_cache
-        target: /home/appuser/.cache/huggingface
+        target: /app/cache/huggingface
         volume:
           nocopy: true
       - type: volume
@@ -46,7 +46,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FILE=/app/logs/app.log
       - PYTHONUNBUFFERED=1
-      - HF_HOME=/home/appuser/.cache/huggingface
+      - HF_HOME=/app/cache/huggingface
       - MPLCONFIGDIR=/home/appuser/.config/matplotlib
       - HOME=/home/appuser
       - XDG_CACHE_HOME=/home/appuser/.cache
