@@ -205,7 +205,9 @@ class AudioTranscriber:
         audio_path: str,
         output_dir: Optional[str] = None,
         output_format: Literal["txt", "json", "srt"] = "txt",
-        batch_size: Optional[int] = None
+        batch_size: Optional[int] = None,
+        include_timestamps: bool = True,
+        include_speaker_diarization: bool = True
     ) -> str:
         try:
             if not os.path.exists(audio_path):
@@ -247,8 +249,8 @@ class AudioTranscriber:
                 self.logger.error(traceback.format_exc())
                 self.logger.warning("Continuando sem alinhamento...")
 
-            # Diarização
-            if hasattr(self, 'has_diarization') and self.has_diarization:
+            # Diarização (apenas se solicitada)
+            if include_speaker_diarization and hasattr(self, 'has_diarization') and self.has_diarization:
                 self.logger.info("Iniciando processo de diarização...")
                 try:
                     diarization = self.diarize_model(audio_path)
@@ -264,11 +266,14 @@ class AudioTranscriber:
                     self.logger.error(traceback.format_exc())
                     self.logger.warning("Continuando sem diarização...")
             else:
-                self.logger.info("Diarização não disponível - continuando sem diarização")
+                if not include_speaker_diarization:
+                    self.logger.info("Diarização desabilitada pelo usuário")
+                else:
+                    self.logger.info("Diarização não disponível - continuando sem diarização")
             
             # Salvar resultado
             output_path = self._prepare_output_path(audio_path, output_dir, output_format)
-            self._save_transcription(result, output_path, output_format)
+            self._save_transcription(result, output_path, output_format, include_timestamps, include_speaker_diarization)
             
             self.logger.info(f"Transcrição finalizada: {output_path}")
             return output_path
@@ -299,16 +304,18 @@ class AudioTranscriber:
         self, 
         result: dict, 
         output_path: str,
-        output_format: str
+        output_format: str,
+        include_timestamps: bool = True,
+        include_speaker_diarization: bool = True
     ):
         """Salva a transcrição no formato especificado."""
         try:
             if output_format == "txt":
-                self._save_as_txt(result, output_path)
+                self._save_as_txt(result, output_path, include_timestamps, include_speaker_diarization)
             elif output_format == "json":
                 self._save_as_json(result, output_path)
             elif output_format == "srt":
-                self._save_as_srt(result, output_path)
+                self._save_as_srt(result, output_path, include_timestamps, include_speaker_diarization)
         except Exception as e:
             self.logger.error(f"Erro ao salvar no formato {output_format}: {str(e)}")
             self.logger.error(traceback.format_exc())
@@ -319,25 +326,33 @@ class AudioTranscriber:
                 f.write(str(result))
             raise
 
-    def _save_as_txt(self, result: dict, output_path: str):
-        """Salva a transcrição em formato TXT com informações de falantes."""
+    def _save_as_txt(self, result: dict, output_path: str, include_timestamps: bool = True, include_speaker_diarization: bool = True):
+        """Salva a transcrição em formato TXT com opções de timestamps e falantes."""
         current_speaker = None
         with open(output_path, "w", encoding="utf-8") as f:
             for segment in result.get("segments", []):
                 text = segment.get("text", "").strip()
                 start = segment.get("start", 0)
                 end = segment.get("end", 0)
-                speaker = segment.get("speaker", "").replace("SPEAKER_", "Falante ")
+                speaker = segment.get("speaker", "").replace("SPEAKER_", "Falante ") if include_speaker_diarization else ""
                 
-                timestamp = f"[{self._format_time(start)} -> {self._format_time(end)}]"
+                # Construir linha com base nas opções selecionadas
+                parts = []
                 
-                # Se mudou o falante, adiciona uma linha em branco para melhor legibilidade
-                if speaker and speaker != current_speaker:
-                    if current_speaker is not None:
-                        f.write("\n")
-                    current_speaker = speaker
-                    
-                line = f"{timestamp} {speaker}: {text}" if speaker else f"{timestamp} {text}"
+                if include_timestamps:
+                    timestamp = f"[{self._format_time(start)} -> {self._format_time(end)}]"
+                    parts.append(timestamp)
+                
+                if include_speaker_diarization and speaker:
+                    # Se mudou o falante, adiciona uma linha em branco para melhor legibilidade
+                    if speaker != current_speaker:
+                        if current_speaker is not None:
+                            f.write("\n")
+                        current_speaker = speaker
+                    parts.append(f"{speaker}:")
+                
+                parts.append(text)
+                line = " ".join(parts)
                 f.write(f"{line}\n")
 
     def _save_as_json(self, result: dict, output_path: str):
@@ -345,17 +360,22 @@ class AudioTranscriber:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(result, f, ensure_ascii=False, indent=2)
 
-    def _save_as_srt(self, result: dict, output_path: str):
+    def _save_as_srt(self, result: dict, output_path: str, include_timestamps: bool = True, include_speaker_diarization: bool = True):
         with open(output_path, "w", encoding="utf-8") as f:
             for i, segment in enumerate(result["segments"], 1):
-                start = self._format_time_srt(segment["start"])
-                end = self._format_time_srt(segment["end"])
-                speaker = segment.get("speaker", "Desconhecido")
+                start = self._format_time_srt(segment["start"]) if include_timestamps else "00:00:00,000"
+                end = self._format_time_srt(segment["end"]) if include_timestamps else "00:00:00,000"
+                speaker = segment.get("speaker", "Desconhecido") if include_speaker_diarization else ""
                 text = segment["text"].strip()
                 
                 f.write(f"{i}\n")
-                f.write(f"{start} --> {end}\n")
-                f.write(f"{speaker}: {text}\n\n")
+                if include_timestamps:
+                    f.write(f"{start} --> {end}\n")
+                
+                if include_speaker_diarization and speaker:
+                    f.write(f"{speaker}: {text}\n\n")
+                else:
+                    f.write(f"{text}\n\n")
 
     @staticmethod
     def _format_time(seconds: float) -> str:
