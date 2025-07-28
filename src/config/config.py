@@ -49,10 +49,10 @@ class AppConfig(BaseModel):
         
         return cls(
             hf_token=hf_token,
-            audios_dir=Path(os.getenv('AUDIOS_DIR', '/app/public/audios')),
-            transcriptions_dir=Path(os.getenv('TRANSCRIPTIONS_DIR', '/app/public/transcriptions')),
+            audios_dir=Path(os.getenv('AUDIOS_DIR', './public/audios')),
+            transcriptions_dir=Path(os.getenv('TRANSCRIPTIONS_DIR', './public/transcriptions')),
             version_model=os.getenv('VERSION_MODEL', 'turbo'),
-            force_cpu=os.getenv('FORCE_CPU', 'true').lower() == 'true'
+            force_cpu=os.getenv('FORCE_CPU', 'false').lower() == 'true'
         )
         
     def get_audio_path(self, filename: str) -> Path:
