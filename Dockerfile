@@ -4,23 +4,21 @@ FROM python:3.10-slim
 # Criar usuário não-root
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Criar diretórios e configurar permissões mais permissivas para o cache
+# Criar diretórios e configurar permissões para cache
 RUN mkdir -p /home/appuser/.cache/huggingface \
     /home/appuser/.config/matplotlib \
     /app/audios \
     /app/transcriptions \
-    /app/logs && \
-    chown -R appuser:appuser /home/appuser && \
-    chmod -R 777 /home/appuser/.cache && \
-    find /home/appuser/.cache -type d -exec chmod 777 {} + && \
-    chown -R appuser:appuser /app && \
-    chmod -R 755 /app
+    /app/logs \
+    /app/cache/huggingface && \
+    chown -R appuser:appuser /home/appuser /app && \
+    chmod -R 755 /home/appuser /app
 
-# ADICIONAR AQUI - Novas variáveis de ambiente
-ENV HF_HOME=/home/appuser/.cache/huggingface \
-    HF_HOME_DIR=/home/appuser/.cache/huggingface \
-    HF_DATASETS_CACHE=/home/appuser/.cache/huggingface/datasets \
-    TORCH_HOME=/home/appuser/.cache/torch \
+# Variáveis de ambiente para cache
+ENV HF_HOME=/app/cache/huggingface \
+    HF_HUB_CACHE=/app/cache/huggingface \
+    HF_ASSETS_CACHE=/app/cache/huggingface \
+    TORCH_HOME=/app/cache/torch \
     MPLCONFIGDIR=/home/appuser/.config/matplotlib \
     HOME=/home/appuser
 
