@@ -26,6 +26,12 @@ def get_transcription_service():
     settings = get_settings()
     return TranscriptionService(settings)
 
+@router.get("/test")
+async def test_endpoint():
+    """Endpoint de teste para verificar se a rota está funcionando"""
+    return {"message": "Endpoint de transcrição funcionando!", "status": "ok"}
+
+@router.post("", response_model=TranscriptionTask)
 @router.post("/", response_model=TranscriptionTask)
 async def transcribe_audio(
     file: UploadFile,
@@ -39,14 +45,38 @@ async def transcribe_audio(
     try:
         config = service.config
         
-        print("Tipos permitidos:", config.allowed_extensions)
-        print("Tipo recebido:", file.content_type)
+        logger.info(f"Recebendo arquivo: {file.filename}")
+        logger.info(f"Tipo recebido: {file.content_type}")
+        logger.info(f"Tipos permitidos: {config.allowed_extensions}")
         
-        # Validação do tipo do arquivo
-        if file.content_type not in config.allowed_extensions:
+        # Validação do arquivo
+        if not file.filename or not file.file:
             raise HTTPException(
                 status_code=400,
-                detail=f"Tipo de arquivo não suportado. Tipos permitidos: {', '.join(config.allowed_extensions)}"
+                detail="Arquivo de áudio inválido"
+            )
+        
+        # Validação mais flexível do tipo do arquivo
+        allowed_types = config.allowed_extensions
+        file_extension = Path(file.filename).suffix.lower()
+        
+        # Mapeamento de extensões para tipos MIME
+        extension_to_mime = {
+            '.wav': 'audio/wav',
+            '.mp3': 'audio/mp3', 
+            '.ogg': 'audio/ogg',
+            '.m4a': 'audio/m4a',
+            '.flac': 'audio/flac',
+            '.aac': 'audio/aac'
+        }
+        
+        expected_mime = extension_to_mime.get(file_extension)
+        
+        # Aceita se o content_type está correto OU se a extensão é válida
+        if file.content_type not in allowed_types and expected_mime not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tipo de arquivo não suportado. Tipos permitidos: {', '.join(allowed_types)}. Recebido: {file.content_type}"
             )
         
         # Antes da validação, precisamos ler o tamanho do arquivo
@@ -82,13 +112,24 @@ async def transcribe_audio(
             # Ler o conteúdo do arquivo
             contents = await file.read()
             
+            logger.info(f"Arquivo lido com sucesso. Tamanho: {len(contents)} bytes")
+            
             # Salvar o arquivo
             with open(audio_path, "wb") as buffer:
                 buffer.write(contents)
                 
-            logger.info(f"Arquivo salvo com sucesso: {audio_path}")            
+            logger.info(f"Arquivo salvo com sucesso: {audio_path}")
+            
+            # Verificar se o arquivo foi salvo corretamente
+            if not os.path.exists(audio_path):
+                raise Exception("Arquivo não foi salvo corretamente")
+                
+            file_size = os.path.getsize(audio_path)
+            logger.info(f"Arquivo salvo com tamanho: {file_size} bytes")
+            
         except Exception as e:
             logger.error(f"Erro detalhado ao salvar arquivo: {str(e)}")
+            logger.error(f"Tipo de erro: {type(e).__name__}")
             raise HTTPException(
                 status_code=500,
                 detail=f"Erro ao salvar arquivo de áudio: {str(e)}"
@@ -101,8 +142,8 @@ async def transcribe_audio(
             task_id=task_id,
             audio_path=str(audio_path),
             output_format='txt',#params.output_format,
-            force_cpu=True,#params.force_cpu,
-            version_model='turbo',#params.version_model
+            force_cpu=config.force_cpu,#params.force_cpu,
+            version_model=config.version_model,#params.version_model
         )
         
         serialized_task = jsonable_encoder(task)
