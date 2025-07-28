@@ -11,7 +11,7 @@ try:
     
     transcriber = AudioTranscriber(
         version_model="turbo",
-        force_cpu=True
+        force_cpu=False
     )
 
     output_file = transcriber.transcribe(
