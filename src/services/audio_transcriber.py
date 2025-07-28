@@ -23,12 +23,18 @@ class AudioTranscriber:
         self, 
         version_model: str = "base", 
         hf_token: str = None,
-        force_cpu: bool = False
+        force_cpu: bool = True  # Forçar CPU por padrão
     ):
         self.logger = get_logger(__name__)  # Usa o logger global
         
+        # Forçar CPU se especificado ou se houver problemas de CUDA
         self.has_cuda = torch.cuda.is_available() and not force_cpu
         self.device = "cuda" if self.has_cuda else "cpu"
+        
+        # Log adicional para debug
+        self.logger.info(f"CUDA disponível: {torch.cuda.is_available()}")
+        self.logger.info(f"Force CPU: {force_cpu}")
+        self.logger.info(f"Dispositivo final: {self.device}")
         
         # Configurações baseadas no dispositivo
         self.compute_type = "float16" if self.has_cuda else "int8"
