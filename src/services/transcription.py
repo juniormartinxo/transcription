@@ -113,7 +113,9 @@ class TranscriptionService:
         audio_path: str,
         output_format: OutputFormat,
         force_cpu: Optional[bool],
-        version_model: Optional[str]
+        version_model: Optional[str],
+        include_timestamps: bool = True,
+        include_speaker_diarization: bool = True
     ):
         try:
             task = self._tasks[task_id]
@@ -126,7 +128,9 @@ class TranscriptionService:
             output_file = transcriber.transcribe(
                 audio_path=audio_path,
                 output_dir=self.config.transcriptions_dir,
-                output_format=output_format
+                output_format=output_format,
+                include_timestamps=include_timestamps,
+                include_speaker_diarization=include_speaker_diarization
             )
             
             self._tasks[task_id] = task.update_task(
