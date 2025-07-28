@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 import traceback
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, Optional
@@ -15,6 +16,12 @@ from pyannote.audio import Pipeline  # Adicionando o import correto
 
 from src.core.colored_formatter import ColoredFormatter
 from src.core.logger_config import get_logger
+
+# Suprimir warnings de compatibilidade conhecidos
+warnings.filterwarnings("ignore", message=".*torch.cuda.amp.custom_fwd.*")
+warnings.filterwarnings("ignore", message=".*TensorFloat-32.*")
+warnings.filterwarnings("ignore", message=".*torchaudio._backend.list_audio_backends.*")
+warnings.filterwarnings("ignore", message=".*Model was trained with.*")
 
 logger = get_logger(__name__)
 
@@ -30,6 +37,12 @@ class AudioTranscriber:
         # Forçar CPU se especificado ou se houver problemas de CUDA
         self.has_cuda = torch.cuda.is_available() and not force_cpu
         self.device = "cuda" if self.has_cuda else "cpu"
+        self.torch_device = torch.device(self.device)
+        
+        # Configurar TF32 para melhor compatibilidade
+        if self.has_cuda:
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
         
         # Log adicional para debug
         self.logger.info(f"CUDA disponível: {torch.cuda.is_available()}")
@@ -78,7 +91,7 @@ class AudioTranscriber:
                 use_auth_token=self.hf_token
             )
             if self.device == "cuda":
-                self.diarize_model = self.diarize_model.to(self.device)
+                self.diarize_model = self.diarize_model.to(self.torch_device)
             self.logger.info("Modelo de diarização carregado com sucesso")
             self.has_diarization = True
         except Exception as e:
