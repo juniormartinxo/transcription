@@ -26,12 +26,12 @@ class AppConfig(BaseModel):
     Classe de configuração da aplicação
     """
     hf_token: str
-    audios_dir: Path = Path("/app/public/audios")
-    transcriptions_dir: Path = Path("/app/public/transcriptions")
+    audios_dir: Path = Path("./public/audios")
+    transcriptions_dir: Path = Path("./public/transcriptions")
     version_model: ModelSize = ModelSize.TURBO  # Mudado de version_model para version_model
     force_cpu: bool = True
     max_file_size: int = 100 * 1024 * 1024  # 100MB
-    allowed_extensions: Set[str] = {"audio/mp3", "audio/wav", "audio/ogg", "audio/m4a"}
+    allowed_extensions: Set[str] = {"audio/mp3", "audio/wav", "audio/ogg", "audio/m4a", "audio/flac", "audio/aac", "audio/x-wav"}
     
     model_config = ConfigDict(protected_namespaces=())
     
