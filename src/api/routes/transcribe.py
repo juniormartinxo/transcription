@@ -17,6 +17,7 @@ from src.models.schemas import (
     TranscriptionTask,
 )
 from src.services.transcription import TranscriptionService
+from src.services.video_extractor import VideoAudioExtractor
 
 logger = get_logger(__name__)
 
@@ -233,4 +234,105 @@ async def list_transcriptions(
         )
     except Exception as e:
         logger.error(f"Erro ao listar transcrições: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/extract-audio")
+async def extract_audio_from_video(
+    file: UploadFile,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Extrai áudio de um arquivo de vídeo e retorna como WAV
+    """
+    try:
+        extractor = VideoAudioExtractor()
+        
+        # Validação do arquivo
+        if not file.filename or not file.file:
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo de vídeo inválido"
+            )
+        
+        # Verifica se é um arquivo de vídeo suportado
+        if not extractor.is_video_file(file.filename):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Formato de vídeo não suportado. Formatos suportados: {', '.join(extractor.supported_video_formats)}"
+            )
+        
+        # Validação do tamanho do arquivo
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        max_size = 500 * 1024 * 1024  # 500MB para vídeos
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tamanho do arquivo excede o limite de {max_size} bytes"
+            )
+        
+        # Cria diretórios se não existirem
+        videos_dir = Path(service.config.audios_dir).parent / "videos"
+        os.makedirs(videos_dir, exist_ok=True)
+        os.makedirs(service.config.audios_dir, exist_ok=True)
+        
+        # Gera nomes únicos para os arquivos
+        task_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        video_path = videos_dir / f"{task_id}_{file.filename}"
+        audio_filename = f"{task_id}_{Path(file.filename).stem}.wav"
+        audio_path = Path(service.config.audios_dir) / audio_filename
+        
+        try:
+            # Salva o arquivo de vídeo temporariamente
+            contents = await file.read()
+            with open(video_path, "wb") as buffer:
+                buffer.write(contents)
+            
+            logger.info(f"Vídeo salvo: {video_path}")
+            
+            # Extrai o áudio
+            success = extractor.extract_audio(str(video_path), str(audio_path))
+            
+            if not success:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Falha na extração do áudio do vídeo"
+                )
+            
+            # Remove o arquivo de vídeo temporário
+            try:
+                os.remove(video_path)
+                logger.info(f"Arquivo de vídeo temporário removido: {video_path}")
+            except Exception as e:
+                logger.warning(f"Não foi possível remover o arquivo temporário: {e}")
+            
+            # Retorna o arquivo de áudio WAV
+            return FileResponse(
+                path=str(audio_path),
+                filename=audio_filename,
+                media_type="audio/wav",
+                headers={"Content-Disposition": f"attachment; filename={audio_filename}"}
+            )
+            
+        except Exception as e:
+            # Limpa arquivos temporários em caso de erro
+            for temp_file in [video_path, audio_path]:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except:
+                    pass
+                    
+            logger.error(f"Erro ao extrair áudio: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro ao extrair áudio do vídeo: {str(e)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro inesperado ao extrair áudio: {e}")
         raise HTTPException(status_code=500, detail=str(e))
