@@ -32,12 +32,16 @@ async def test_endpoint():
     return {"message": "Endpoint de transcrição funcionando!", "status": "ok"}
 
 @router.post("", response_model=TranscriptionTask)
-@router.post("/", response_model=TranscriptionTask)
+@router.post("/", response_model=TranscriptionTask) 
 async def transcribe_audio(
     file: UploadFile,
-    #params: TranscriptionRequest,
     background_tasks: BackgroundTasks,
-    service: TranscriptionService = Depends(get_transcription_service)
+    service: TranscriptionService = Depends(get_transcription_service),
+    include_timestamps: bool = True,
+    include_speaker_diarization: bool = True,
+    output_format: str = "txt",
+    force_cpu: bool = None,
+    version_model: str = None
 ):
     """
     Inicia uma nova tarefa de transcrição de áudio
@@ -141,9 +145,11 @@ async def transcribe_audio(
             service.process_transcription,
             task_id=task_id,
             audio_path=str(audio_path),
-            output_format='txt',#params.output_format,
-            force_cpu=config.force_cpu,#params.force_cpu,
-            version_model=config.version_model,#params.version_model
+            output_format=output_format,
+            force_cpu=force_cpu if force_cpu is not None else config.force_cpu,
+            version_model=version_model or config.version_model,
+            include_timestamps=include_timestamps,
+            include_speaker_diarization=include_speaker_diarization
         )
         
         serialized_task = jsonable_encoder(task)
