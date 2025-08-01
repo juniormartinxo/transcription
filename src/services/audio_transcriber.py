@@ -207,7 +207,9 @@ class AudioTranscriber:
         output_format: Literal["txt", "json", "srt"] = "txt",
         batch_size: Optional[int] = None,
         include_timestamps: bool = True,
-        include_speaker_diarization: bool = True
+        include_speaker_diarization: bool = True,
+        task_id: Optional[str] = None,
+        transcription_suffix: Optional[str] = None
     ) -> str:
         try:
             if not os.path.exists(audio_path):
@@ -272,7 +274,7 @@ class AudioTranscriber:
                     self.logger.info("Diarização não disponível - continuando sem diarização")
             
             # Salvar resultado
-            output_path = self._prepare_output_path(audio_path, output_dir, output_format)
+            output_path = self._prepare_output_path(audio_path, output_dir, output_format, task_id, transcription_suffix)
             self._save_transcription(result, output_path, output_format, include_timestamps, include_speaker_diarization)
             
             self.logger.info(f"Transcrição finalizada: {output_path}")
@@ -287,18 +289,34 @@ class AudioTranscriber:
         self, 
         audio_path: str, 
         output_dir: Optional[str],
-        output_format: str
+        output_format: str,
+        task_id: Optional[str] = None,
+        transcription_suffix: Optional[str] = None
     ) -> str:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         audio_filename = Path(audio_path).stem
         
         if output_dir:
-            output_path = Path(output_dir)
-            output_path.mkdir(parents=True, exist_ok=True)
+            base_output_path = Path(output_dir)
         else:
-            output_path = Path(audio_path).parent
+            base_output_path = Path(audio_path).parent
             
-        return str(output_path / f"{audio_filename}_transcricao_{timestamp}.{output_format}")
+        # Cria subpasta para cada transcrição usando task_id se disponível
+        if task_id:
+            subfolder_name = task_id
+        else:
+            subfolder_name = f"{timestamp}_{audio_filename}"
+            
+        output_path = base_output_path / subfolder_name
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        # Define o nome do arquivo de saída com sufixo se fornecido
+        if transcription_suffix:
+            output_filename = f"{audio_filename}_transcricao_{transcription_suffix}_{timestamp}.{output_format}"
+        else:
+            output_filename = f"{audio_filename}_transcricao_{timestamp}.{output_format}"
+            
+        return str(output_path / output_filename)
 
     def _save_transcription(
         self, 
