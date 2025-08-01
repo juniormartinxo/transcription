@@ -336,13 +336,14 @@ async def extract_audio_from_video(
                     include_speaker_diarization=config["diarization"]
                 )
                 
-                transcription_tasks.append({
-                    "task_id": transcription_task_id,
+                # Adiciona o objeto TranscriptionTask completo com metadados adicionais
+                task_dict = jsonable_encoder(task)
+                task_dict.update({
                     "type": config["suffix"],
                     "timestamps": config["timestamps"],
-                    "diarization": config["diarization"],
-                    "status": "pending"
+                    "diarization": config["diarization"]
                 })
+                transcription_tasks.append(task_dict)
                 
                 logger.info(f"Transcrição {config['suffix']} criada: {transcription_task_id}")
             
@@ -351,12 +352,17 @@ async def extract_audio_from_video(
                 status_code=200,
                 content={
                     "message": "Áudio extraído com sucesso e transcrições iniciadas",
-                    "audio_filename": audio_filename,
-                    "audio_path": str(audio_path),
-                    "file_size_bytes": os.path.getsize(audio_path),
-                    "original_video": file.filename,
-                    "transcription_tasks": transcription_tasks,
-                    "total_transcriptions": len(transcription_tasks)
+                    "audio": {
+                        "filename": audio_filename,
+                        "path": str(audio_path),
+                        "size_bytes": os.path.getsize(audio_path),
+                        "original_video": file.filename
+                    },
+                    "transcriptions": transcription_tasks,
+                    "summary": {
+                        "total": len(transcription_tasks),
+                        "types": [config["suffix"] for config in configs]
+                    }
                 }
             )
             
