@@ -47,6 +47,9 @@ curl http://localhost:8000/docs       # API documentation
 
 # Test transcription
 curl -X POST "http://localhost:8000/transcribe/" -F "file=@audio.wav"
+
+# Extract audio from video and transcribe
+curl -X POST "http://localhost:8000/transcribe/extract-audio" -F "file=@video.mp4"
 ```
 
 ### Testing and Debugging
@@ -62,6 +65,9 @@ python check_gpu.py                   # GPU compatibility check
 # Debug Docker
 docker-compose exec transcriber bash  # Shell into container
 docker-compose logs transcriber       # Container logs
+
+# Fix permissions if needed
+./scripts/fix_permissions.sh          # Fix directory/file permissions
 ```
 
 ## Architecture
@@ -69,6 +75,7 @@ docker-compose logs transcriber       # Container logs
 ### Core Service Layer
 - **TranscriptionService** (`src/services/transcription.py`): Orchestrates transcription tasks, manages persistence in JSON file, handles background processing
 - **AudioTranscriber** (`src/services/audio_transcriber.py`): Wraps WhisperX and PyAnnote models, handles device selection (CPU/GPU), manages model loading and caching
+- **VideoAudioExtractor** (`src/services/video_extractor.py`): Extracts audio from video files using FFmpeg, supports multiple video formats
 
 ### Configuration Architecture
 - **AppConfig** (`src/config/config.py`): Pydantic-based configuration with environment variable loading, includes ModelSize enum and path helpers
@@ -85,6 +92,7 @@ docker-compose logs transcriber       # Container logs
 - **Dependency Injection**: FastAPI Depends() pattern for service instantiation
 - **Error Handling**: Consistent HTTPException usage with detailed logging
 - **File Validation**: Content-type and extension checking with size limits
+- **Video Support**: `/transcribe/extract-audio` endpoint automatically creates 4 transcriptions with different configurations
 
 ### Logging Architecture
 - **Global Logger Setup**: Centralized configuration in `src/core/logger_config.py`
@@ -102,10 +110,20 @@ The service has sophisticated device selection logic in AudioTranscriber:
 - Warning suppression for known compatibility issues
 
 ### File Processing Flow
-1. **Upload Validation**: Size limits (100MB), content-type flexibility (accepts both MIME and extension)
+1. **Upload Validation**: Size limits (100MB for audio, 500MB for video), content-type flexibility (accepts both MIME and extension)
 2. **Task Creation**: Unique task_id with timestamp and random hex
 3. **Background Processing**: WhisperX transcription + PyAnnote diarization
 4. **Result Storage**: Text files in `public/transcriptions/` with task status updates
+
+### Video Processing Flow
+1. **Video Upload**: Accepts common formats (.mp4, .avi, .mov, .mkv, etc.)
+2. **Audio Extraction**: FFmpeg converts to WAV (16kHz, mono)
+3. **Auto-Transcription**: Creates 4 versions automatically:
+   - `limpa`: No timestamps, no diarization (clean text)
+   - `timestamps`: With timestamps, no diarization
+   - `diarization`: No timestamps, with speaker identification
+   - `completa`: Full features (timestamps + diarization)
+4. **Cleanup**: Removes temporary video file after extraction
 
 ### Model Management
 Models are lazy-loaded and cached in the AudioTranscriber instance:
@@ -153,3 +171,13 @@ This hardware requires PyTorch Nightly (2.9.0.dev+cu128) due to CUDA sm_120 arch
 - Check `/health` endpoint for service status
 - Test with small audio files first (model loading takes time)
 - Use `/docs` endpoint for interactive API testing
+- Test video extraction with `/transcribe/extract-audio` endpoint
+
+## API Endpoints
+
+### Transcription Endpoints
+- `POST /transcribe/`: Upload audio file for transcription
+- `GET /transcribe/{task_id}`: Check transcription status
+- `GET /transcribe/{task_id}/download`: Download completed transcription
+- `GET /transcribe/`: List all transcription tasks
+- `POST /transcribe/extract-audio`: Extract audio from video and auto-transcribe
