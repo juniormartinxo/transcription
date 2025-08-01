@@ -18,6 +18,7 @@ from src.models.schemas import (
 )
 from src.services.transcription import TranscriptionService
 from src.services.video_extractor import VideoAudioExtractor
+from src.services.video_frame_extractor import VideoFrameExtractor
 
 logger = get_logger(__name__)
 
@@ -104,11 +105,16 @@ async def transcribe_audio(
                 detail="Arquivo de áudio inválido"
             )
             
-        # Cria diretório se não existir
+        # Cria diretório base se não existir
         os.makedirs(service.config.audios_dir, exist_ok=True)
         
         task_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
-        audio_path = Path(service.config.audios_dir) / f"{task_id}_{file.filename}"
+        
+        # Cria subpasta para o áudio
+        audio_subfolder = Path(service.config.audios_dir) / task_id
+        audio_subfolder.mkdir(parents=True, exist_ok=True)
+        
+        audio_path = audio_subfolder / file.filename
         
         try:
             # Garantir que o arquivo está no início
@@ -282,8 +288,13 @@ async def extract_audio_from_video(
         # Gera nomes únicos para os arquivos
         task_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
         video_path = videos_dir / f"{task_id}_{file.filename}"
-        audio_filename = f"{task_id}_{Path(file.filename).stem}.wav"
-        audio_path = Path(service.config.audios_dir) / audio_filename
+        
+        # Cria subpasta para o áudio extraído
+        audio_subfolder = Path(service.config.audios_dir) / task_id
+        audio_subfolder.mkdir(parents=True, exist_ok=True)
+        
+        audio_filename = f"{Path(file.filename).stem}.wav"
+        audio_path = audio_subfolder / audio_filename
         
         try:
             # Salva o arquivo de vídeo temporariamente
@@ -333,7 +344,9 @@ async def extract_audio_from_video(
                     force_cpu=service.config.force_cpu,
                     version_model=service.config.version_model,
                     include_timestamps=config["timestamps"],
-                    include_speaker_diarization=config["diarization"]
+                    include_speaker_diarization=config["diarization"],
+                    base_task_id=task_id,  # Usa o task_id base para a pasta
+                    transcription_suffix=config["suffix"]  # Sufixo para o nome do arquivo
                 )
                 
                 # Adiciona o objeto TranscriptionTask completo com metadados adicionais
@@ -385,4 +398,174 @@ async def extract_audio_from_video(
         raise
     except Exception as e:
         logger.error(f"Erro inesperado ao extrair áudio: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/extract-frames")
+async def extract_frames_from_video(
+    file: UploadFile,
+    fps: float = 1.0,
+    interval_seconds: float = None,
+    extract_keyframes: bool = False,
+    format: str = "jpg",
+    quality: int = 2,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Extrai frames de um arquivo de vídeo e salva como imagens
+    
+    Args:
+        file: Arquivo de vídeo
+        fps: Frames por segundo a extrair (padrão: 1.0)
+        interval_seconds: Intervalo em segundos entre frames (alternativa ao fps)
+        extract_keyframes: Se True, extrai apenas key frames
+        format: Formato das imagens (jpg ou png)
+        quality: Qualidade das imagens JPEG (1-31, menor = melhor qualidade)
+    """
+    try:
+        extractor = VideoFrameExtractor()
+        
+        # Validação do arquivo
+        if not file.filename or not file.file:
+            raise HTTPException(
+                status_code=400,
+                detail="Arquivo de vídeo inválido"
+            )
+        
+        # Verifica se é um arquivo de vídeo suportado
+        if not extractor.is_video_file(file.filename):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Formato de vídeo não suportado. Formatos suportados: {', '.join(extractor.supported_video_formats)}"
+            )
+        
+        # Validação do tamanho do arquivo
+        file.file.seek(0, 2)
+        file_size = file.file.tell()
+        file.file.seek(0)
+        
+        max_size = 500 * 1024 * 1024  # 500MB para vídeos
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tamanho do arquivo excede o limite de {max_size} bytes"
+            )
+        
+        # Validação dos parâmetros
+        if format not in ["jpg", "png"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Formato deve ser 'jpg' ou 'png'"
+            )
+        
+        if quality < 1 or quality > 31:
+            raise HTTPException(
+                status_code=400,
+                detail="Qualidade deve estar entre 1 e 31"
+            )
+        
+        # Cria diretórios
+        sequencies_dir = Path("public/sequencies")
+        sequencies_dir.mkdir(parents=True, exist_ok=True)
+        
+        videos_dir = Path(service.config.audios_dir).parent / "videos"
+        videos_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Gera nomes únicos
+        task_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        video_path = videos_dir / f"{task_id}_{file.filename}"
+        output_dir = sequencies_dir / f"{task_id}_{Path(file.filename).stem}"
+        
+        try:
+            # Salva o arquivo de vídeo temporariamente
+            contents = await file.read()
+            with open(video_path, "wb") as buffer:
+                buffer.write(contents)
+            
+            logger.info(f"Vídeo salvo: {video_path}")
+            
+            # Extrai os frames
+            if extract_keyframes:
+                result = extractor.extract_key_frames(
+                    str(video_path),
+                    str(output_dir),
+                    format=format,
+                    quality=quality
+                )
+            elif interval_seconds:
+                result = extractor.extract_frames_at_intervals(
+                    str(video_path),
+                    str(output_dir),
+                    interval_seconds=interval_seconds,
+                    format=format,
+                    quality=quality
+                )
+            else:
+                result = extractor.extract_frames(
+                    str(video_path),
+                    str(output_dir),
+                    fps=fps,
+                    quality=quality,
+                    format=format
+                )
+            
+            # Remove o arquivo de vídeo temporário
+            try:
+                os.remove(video_path)
+                logger.info(f"Arquivo de vídeo temporário removido: {video_path}")
+            except Exception as e:
+                logger.warning(f"Não foi possível remover o arquivo temporário: {e}")
+            
+            if not result["success"]:
+                # Limpa o diretório de saída em caso de erro
+                extractor.cleanup_output_dir(str(output_dir))
+                raise HTTPException(
+                    status_code=500,
+                    detail=result.get("error", "Falha na extração de frames")
+                )
+            
+            # Retorna informações sobre a extração
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "message": "Frames extraídos com sucesso",
+                    "task_id": task_id,
+                    "extraction": {
+                        "frame_count": result["frame_count"],
+                        "output_dir": str(output_dir),
+                        "fps_extracted": result.get("fps_extracted", fps),
+                        "format": format,
+                        "quality": quality,
+                        "extraction_type": result.get("extraction_type", "regular"),
+                        "video_info": result.get("video_info")
+                    },
+                    "original_video": {
+                        "filename": file.filename,
+                        "size_bytes": file_size
+                    }
+                }
+            )
+            
+        except Exception as e:
+            # Limpa arquivos temporários em caso de erro
+            for temp_file in [video_path]:
+                try:
+                    if os.path.exists(temp_file):
+                        os.remove(temp_file)
+                except:
+                    pass
+            
+            # Limpa diretório de saída se foi criado
+            if os.path.exists(output_dir):
+                extractor.cleanup_output_dir(str(output_dir))
+                    
+            logger.error(f"Erro ao extrair frames: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro ao extrair frames do vídeo: {str(e)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro inesperado ao extrair frames: {e}")
         raise HTTPException(status_code=500, detail=str(e))
