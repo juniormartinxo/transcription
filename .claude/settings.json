@@ -1,0 +1,226 @@
+{
+  "project": {
+    "name": "Audio/Video Transcription API",
+    "type": "python-fastapi",
+    "description": "FastAPI service for audio/video transcription using WhisperX and PyAnnote"
+  },
+  
+  "defaultCommands": {
+    "run": "python run_venv.py",
+    "run-local": "python run_local.py",
+    "run-gpu": "./scripts/run_with_gpu.sh",
+    "run-cpu": "./scripts/run_with_cpu.sh",
+    "setup": "./scripts/setup_venv.sh",
+    "setup-rtx": "./scripts/setup_rtx5070ti.sh",
+    "test": "python -m pytest tests/ -v",
+    "lint": "python -m flake8 src/ --max-line-length=120",
+    "format": "python -m black src/ --line-length=120",
+    "typecheck": "python -m mypy src/ --ignore-missing-imports",
+    "logs": "tail -f logs/app.log",
+    "gpu-check": "python -c \"import torch; print(f'CUDA available: {torch.cuda.is_available()}')\"",
+    "clean": "find . -type d -name __pycache__ -exec rm -r {} + 2>/dev/null || true",
+    "clean-all": "rm -rf venv/ cache/ logs/* public/audios/* public/transcriptions/* public/videos/*",
+    "docker-up": "docker-compose up --build",
+    "docker-down": "docker-compose down",
+    "fix-permissions": "./scripts/fix_permissions.sh"
+  },
+  
+  "environmentVariables": {
+    "PYTHONPATH": "${workspaceFolder}",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUNBUFFERED": "1",
+    "FORCE_CPU": "true",
+    "LOG_LEVEL": "INFO",
+    "VERSION_MODEL": "turbo",
+    "AUDIOS_DIR": "./public/audios",
+    "TRANSCRIPTIONS_DIR": "./public/transcriptions",
+    "LOG_FILE": "./logs/app.log"
+  },
+  
+  "filePatterns": {
+    "include": [
+      "src/**/*.py",
+      "tests/**/*.py",
+      "scripts/**/*.sh",
+      "*.py",
+      "requirements*.txt",
+      "docker-compose*.yml",
+      "Dockerfile*",
+      ".env*",
+      "CLAUDE.md",
+      "README.md"
+    ],
+    "exclude": [
+      "venv/**",
+      "cache/**",
+      "__pycache__/**",
+      "*.pyc",
+      "*.pyo",
+      "logs/**",
+      "public/audios/**",
+      "public/videos/**",
+      "public/transcriptions/**.wav",
+      "public/transcriptions/**.mp3",
+      "public/transcriptions/**.mp4"
+    ]
+  },
+  
+  "codeStyle": {
+    "python": {
+      "formatter": "black",
+      "lineLength": 120,
+      "useTypeHints": true,
+      "docstringFormat": "google",
+      "importOrder": [
+        "standard",
+        "third-party",
+        "local"
+      ]
+    }
+  },
+  
+  "testing": {
+    "framework": "pytest",
+    "configFile": "pytest.ini",
+    "coverageThreshold": 80,
+    "testDirectory": "tests/",
+    "testPattern": "test_*.py"
+  },
+  
+  "dependencies": {
+    "python": ">=3.8",
+    "criticalPackages": [
+      "fastapi",
+      "uvicorn",
+      "whisperx",
+      "pyannote.audio",
+      "torch",
+      "python-multipart",
+      "python-dotenv"
+    ],
+    "requirementsFiles": [
+      "requirements.txt"
+    ]
+  },
+  
+  "api": {
+    "baseUrl": "http://localhost:8000",
+    "endpoints": {
+      "health": "/health",
+      "docs": "/docs",
+      "transcribe": "/transcribe/",
+      "status": "/transcribe/{task_id}",
+      "download": "/transcribe/{task_id}/download",
+      "list": "/transcribe/",
+      "extractAudio": "/transcribe/extract-audio"
+    }
+  },
+  
+  "modelConfiguration": {
+    "whisperModels": ["tiny", "base", "small", "medium", "large", "turbo"],
+    "defaultModel": "turbo",
+    "computeType": {
+      "gpu": "float16",
+      "cpu": "int8"
+    },
+    "batchSize": {
+      "gpu": 16,
+      "cpu": 4
+    }
+  },
+  
+  "fileHandling": {
+    "maxFileSize": {
+      "audio": 104857600,  // 100MB
+      "video": 524288000   // 500MB
+    },
+    "allowedAudioFormats": [
+      ".wav", ".mp3", ".ogg", ".m4a", ".flac", ".aac"
+    ],
+    "allowedVideoFormats": [
+      ".mp4", ".avi", ".mov", ".mkv", ".wmv", ".flv", 
+      ".webm", ".m4v", ".3gp", ".mpg", ".mpeg"
+    ]
+  },
+  
+  "tasks": {
+    "backgroundProcessing": true,
+    "taskPersistence": "json",
+    "taskStates": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"],
+    "outputFormats": ["txt", "json", "srt"],
+    "transcriptionOptions": {
+      "includeTimestamps": true,
+      "includeSpeakerDiarization": true
+    }
+  },
+  
+  "logging": {
+    "level": "INFO",
+    "format": "colored",
+    "outputTo": ["console", "file"],
+    "logFile": "logs/app.log",
+    "maxFileSize": "100MB",
+    "backupCount": 5
+  },
+  
+  "performance": {
+    "maxConcurrentTasks": 3,
+    "taskTimeout": 600,
+    "cleanupInterval": 3600,
+    "cacheDirectory": "cache/huggingface"
+  },
+  
+  "development": {
+    "hotReload": true,
+    "debugMode": true,
+    "verboseErrors": true,
+    "autoRestartOnChange": true
+  },
+  
+  "hooks": {
+    "preCommit": [
+      "python -m black src/ --check",
+      "python -m flake8 src/",
+      "python -m pytest tests/ -x"
+    ],
+    "postMerge": [
+      "pip install -r requirements.txt",
+      "./scripts/fix_permissions.sh"
+    ]
+  },
+  
+  "customInstructions": {
+    "architecture": [
+      "Use FastAPI dependency injection pattern",
+      "Keep TranscriptionService as the main orchestrator",
+      "Use background tasks for long-running operations",
+      "Maintain clear separation between API routes and services"
+    ],
+    "errorHandling": [
+      "Always log errors with full context",
+      "Return meaningful HTTP status codes",
+      "Never expose internal paths or sensitive info in errors",
+      "Use try-except blocks in all service methods"
+    ],
+    "bestPractices": [
+      "Validate all user inputs with Pydantic models",
+      "Use type hints for all function parameters and returns",
+      "Keep functions small and focused (max 50 lines)",
+      "Write docstrings for all public methods",
+      "Use logging instead of print statements"
+    ],
+    "performance": [
+      "Lazy load models to reduce startup time",
+      "Cache model instances between requests",
+      "Use appropriate batch sizes based on device",
+      "Clean up temporary files after processing"
+    ]
+  },
+  
+  "quickActions": {
+    "testAudioTranscription": "curl -X POST 'http://localhost:8000/transcribe/' -F 'file=@test_audio.wav'",
+    "testVideoExtraction": "curl -X POST 'http://localhost:8000/transcribe/extract-audio' -F 'file=@test_video.mp4'",
+    "checkTaskStatus": "curl http://localhost:8000/transcribe/{task_id}",
+    "viewDocs": "open http://localhost:8000/docs"
+  }
+}
