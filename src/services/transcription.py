@@ -115,7 +115,9 @@ class TranscriptionService:
         force_cpu: Optional[bool],
         version_model: Optional[str],
         include_timestamps: bool = True,
-        include_speaker_diarization: bool = True
+        include_speaker_diarization: bool = True,
+        base_task_id: Optional[str] = None,
+        transcription_suffix: Optional[str] = None
     ):
         try:
             task = self._tasks[task_id]
@@ -125,12 +127,16 @@ class TranscriptionService:
             self._save_tasks()  # Salva após atualizar status
 
             transcriber = self._get_transcriber(force_cpu, version_model)
+            # Usa base_task_id se fornecido, senão usa task_id
+            folder_id = base_task_id if base_task_id else task_id
             output_file = transcriber.transcribe(
                 audio_path=audio_path,
                 output_dir=self.config.transcriptions_dir,
                 output_format=output_format,
                 include_timestamps=include_timestamps,
-                include_speaker_diarization=include_speaker_diarization
+                include_speaker_diarization=include_speaker_diarization,
+                task_id=folder_id,
+                transcription_suffix=transcription_suffix
             )
             
             self._tasks[task_id] = task.update_task(
