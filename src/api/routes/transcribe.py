@@ -569,3 +569,80 @@ async def extract_frames_from_video(
     except Exception as e:
         logger.error(f"Erro inesperado ao extrair frames: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/{task_id}/cancel")
+async def cancel_transcription(
+    task_id: str,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Cancela uma tarefa de transcrição em andamento
+    """
+    try:
+        cancelled_task = service.cancel_task(task_id)
+        if not cancelled_task:
+            raise HTTPException(
+                status_code=404,
+                detail="Tarefa não encontrada ou não pode ser cancelada"
+            )
+        
+        return {
+            "message": f"Tarefa {task_id} cancelada com sucesso",
+            "task": cancelled_task
+        }
+    except Exception as e:
+        logger.error(f"Erro ao cancelar tarefa: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/{task_id}")
+async def delete_transcription(
+    task_id: str,
+    delete_files: bool = True,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Exclui uma tarefa de transcrição e, opcionalmente, seus arquivos
+    
+    Query parameters:
+    - delete_files: Se True (padrão), remove também os arquivos associados
+    """
+    try:
+        success = service.delete_task(task_id, delete_files)
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Tarefa não encontrada"
+            )
+        
+        return {
+            "message": f"Tarefa {task_id} excluída com sucesso",
+            "deleted_files": delete_files
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao excluir tarefa: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{task_id}/files")
+async def get_task_files(
+    task_id: str,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Retorna informações sobre os arquivos associados a uma tarefa
+    """
+    try:
+        files_info = service.get_task_files_info(task_id)
+        if not files_info:
+            raise HTTPException(
+                status_code=404,
+                detail="Tarefa não encontrada"
+            )
+        
+        return files_info
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro ao obter informações dos arquivos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

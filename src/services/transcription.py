@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -174,3 +175,119 @@ class TranscriptionService:
         self._tasks[task_id] = task
         self._save_tasks()  # Salva após criar
         return task
+
+    def cancel_task(self, task_id: str) -> Optional[TranscriptionTask]:
+        """
+        Cancela uma tarefa de transcrição em andamento
+        Só pode cancelar tarefas que estão PENDING ou PROCESSING
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            logger.warning(f"Tentativa de cancelar tarefa inexistente: {task_id}")
+            return None
+        
+        if task.status in [TranscriptionStatus.COMPLETED, TranscriptionStatus.FAILED]:
+            logger.warning(f"Não é possível cancelar tarefa {task_id} com status {task.status}")
+            return None
+        
+        # Atualiza o status da tarefa
+        updated_task = task.update_task(
+            status=TranscriptionStatus.FAILED,
+            completed_at=datetime.now(),
+            error="Tarefa cancelada pelo usuário"
+        )
+        
+        self._tasks[task_id] = updated_task
+        self._save_tasks()
+        
+        logger.info(f"Tarefa {task_id} cancelada com sucesso")
+        return updated_task
+
+    def delete_task(self, task_id: str, delete_files: bool = True) -> bool:
+        """
+        Exclui uma tarefa e, opcionalmente, seus arquivos associados
+        
+        Args:
+            task_id: ID da tarefa a ser excluída
+            delete_files: Se True, remove também os arquivos de áudio e transcrição
+        
+        Returns:
+            bool: True se a tarefa foi excluída com sucesso
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            logger.warning(f"Tentativa de excluir tarefa inexistente: {task_id}")
+            return False
+        
+        try:
+            if delete_files:
+                # Remove arquivos de áudio (pasta do task_id)
+                audio_dir = Path(self.config.audios_dir) / task_id
+                if audio_dir.exists():
+                    shutil.rmtree(audio_dir)
+                    logger.info(f"Diretório de áudio removido: {audio_dir}")
+                
+                # Remove arquivos de transcrição (pasta do task_id)
+                transcription_dir = Path(self.config.transcriptions_dir) / task_id
+                if transcription_dir.exists():
+                    shutil.rmtree(transcription_dir)
+                    logger.info(f"Diretório de transcrição removido: {transcription_dir}")
+                
+                # Se há um arquivo de output específico, remove também
+                if task.output_file and os.path.exists(task.output_file):
+                    os.remove(task.output_file)
+                    logger.info(f"Arquivo de output removido: {task.output_file}")
+            
+            # Remove a tarefa da memória e do arquivo
+            del self._tasks[task_id]
+            self._save_tasks()
+            
+            logger.info(f"Tarefa {task_id} excluída com sucesso (delete_files={delete_files})")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erro ao excluir tarefa {task_id}: {str(e)}")
+            return False
+
+    def get_task_files_info(self, task_id: str) -> Dict[str, Any]:
+        """
+        Retorna informações sobre os arquivos associados a uma tarefa
+        """
+        task = self._tasks.get(task_id)
+        if not task:
+            return {}
+        
+        info = {
+            "task_id": task_id,
+            "audio_files": [],
+            "transcription_files": [],
+            "total_size": 0
+        }
+        
+        # Verifica arquivos de áudio
+        audio_dir = Path(self.config.audios_dir) / task_id
+        if audio_dir.exists():
+            for file_path in audio_dir.iterdir():
+                if file_path.is_file():
+                    size = file_path.stat().st_size
+                    info["audio_files"].append({
+                        "name": file_path.name,
+                        "size": size,
+                        "path": str(file_path)
+                    })
+                    info["total_size"] += size
+        
+        # Verifica arquivos de transcrição
+        transcription_dir = Path(self.config.transcriptions_dir) / task_id
+        if transcription_dir.exists():
+            for file_path in transcription_dir.iterdir():
+                if file_path.is_file():
+                    size = file_path.stat().st_size
+                    info["transcription_files"].append({
+                        "name": file_path.name,
+                        "size": size,
+                        "path": str(file_path)
+                    })
+                    info["total_size"] += size
+        
+        return info
