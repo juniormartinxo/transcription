@@ -9,7 +9,7 @@ services:
   # Backend FastAPI
   backend:
     build: 
-      context: .
+      context: ./api
       dockerfile: Dockerfile
       args:
         BUILD_ENV: production
