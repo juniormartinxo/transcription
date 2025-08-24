@@ -6,6 +6,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a full-stack audio transcription application with a FastAPI backend and Next.js frontend. The backend uses WhisperX for speech-to-text and PyAnnote.Audio for speaker diarization, running background transcription tasks with support for both CPU and GPU execution including special RTX 5070 Ti compatibility. The frontend provides a modern React interface for uploading files and managing transcriptions.
 
+## Directory Structure
+
+The project is organized with separate directories for API and frontend:
+```
+.
+├── api/                    # Backend API (FastAPI)
+│   ├── main.py            # API entry point
+│   ├── requirements.txt   # Python dependencies  
+│   ├── src/               # API source code
+│   ├── venv/              # Python virtual environment
+│   ├── scripts/           # Setup and utility scripts
+│   └── Dockerfile         # API container build
+├── frontend/              # Frontend (Next.js)
+│   ├── src/               # React components and pages
+│   ├── package.json       # Node.js dependencies
+│   └── Dockerfile         # Frontend container build
+├── public/                # Shared data directory
+│   ├── audios/            # Uploaded audio files
+│   ├── transcriptions/    # Generated transcriptions
+│   └── videos/            # Uploaded video files
+├── logs/                  # Application logs
+└── docker-compose.yml     # Container orchestration
+```
+
 ## Common Commands
 
 ### Full Stack Development
@@ -14,11 +38,11 @@ This is a full-stack audio transcription application with a FastAPI backend and 
 python run_full_stack.py              # Starts API + Next.js frontend
 
 # Backend only (FastAPI)
-python run_local.py                    # Auto-setup and run locally
-python run_venv.py                     # Auto-setup with venv and run
-./scripts/setup_local.sh              # Manual setup only
-./scripts/setup_venv.sh               # Manual venv setup only
-source venv/bin/activate               # Activate existing venv
+cd api && python run_local.py         # Auto-setup and run locally
+cd api && python run_venv.py          # Auto-setup with venv and run
+cd api && ./scripts/setup_local.sh    # Manual setup only
+cd api && ./scripts/setup_venv.sh     # Manual venv setup only
+cd api && source venv/bin/activate    # Activate existing venv
 
 # Frontend only (Next.js)
 cd frontend && npm run dev             # Development server (with Turbopack)
@@ -35,18 +59,18 @@ docker-compose logs -f transcriber    # View logs
 ### GPU/CPU Execution
 ```bash
 # GPU execution with RTX 5070 Ti support
-./scripts/run_with_gpu.sh             # Requires PyTorch Nightly
-./scripts/setup_rtx5070ti.sh          # Setup RTX 5070 Ti compatibility
+cd api && ./scripts/run_with_gpu.sh   # Requires PyTorch Nightly
+cd api && ./scripts/setup_rtx5070ti.sh # Setup RTX 5070 Ti compatibility
 
 # CPU fallback (always works)
-./scripts/run_with_cpu.sh             # Force CPU mode
+cd api && ./scripts/run_with_cpu.sh   # Force CPU mode
 ```
 
 ### Runtime Commands
 ```bash
 # Start API server
-python main.py                        # Direct execution
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload  # With reload
+cd api && python main.py              # Direct execution
+cd api && uvicorn main:app --host 0.0.0.0 --port 8000 --reload  # With reload
 
 # Check status
 curl http://localhost:8000/health     # Health check
@@ -66,31 +90,31 @@ tail -f logs/app.log                  # Application logs
 tail -f public/logs/app.log           # Alternative log location
 
 # Check GPU status
-python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
-python check_gpu.py                   # GPU compatibility check
+cd api && python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+cd api && python check_gpu.py         # GPU compatibility check
 
 # Debug Docker
 docker-compose exec transcriber bash  # Shell into container
 docker-compose logs transcriber       # Container logs
 
 # Fix permissions if needed
-./scripts/fix_permissions.sh          # Fix directory/file permissions
+cd api && ./scripts/fix_permissions.sh # Fix directory/file permissions
 ```
 
 ## Architecture
 
 ### Full Stack Architecture
 This is a full-stack application with separate backend and frontend components:
-- **Backend**: FastAPI service (`main.py`) running on port 8000
+- **Backend**: FastAPI service (`api/main.py`) running on port 8000
 - **Frontend**: Next.js React application (`frontend/`) running on port 3000
 - **Communication**: REST API endpoints with CORS enabled for cross-origin requests
 - **Development**: Can run independently or together using `run_full_stack.py`
 
 ### Backend Service Layer
-- **TranscriptionService** (`src/services/transcription.py`): Orchestrates transcription tasks, manages persistence in JSON file, handles background processing
-- **AudioTranscriber** (`src/services/audio_transcriber.py`): Wraps WhisperX and PyAnnote models, handles device selection (CPU/GPU), manages model loading and caching
-- **VideoAudioExtractor** (`src/services/video_extractor.py`): Extracts audio from video files using FFmpeg, supports multiple video formats
-- **VideoFrameExtractor** (`src/services/video_frame_extractor.py`): Extracts frames from video files for visual analysis
+- **TranscriptionService** (`api/src/services/transcription.py`): Orchestrates transcription tasks, manages persistence in JSON file, handles background processing
+- **AudioTranscriber** (`api/src/services/audio_transcriber.py`): Wraps WhisperX and PyAnnote models, handles device selection (CPU/GPU), manages model loading and caching
+- **VideoAudioExtractor** (`api/src/services/video_extractor.py`): Extracts audio from video files using FFmpeg, supports multiple video formats
+- **VideoFrameExtractor** (`api/src/services/video_frame_extractor.py`): Extracts frames from video files for visual analysis
 
 ### Frontend Architecture
 - **Framework**: Next.js 15.5.0 with React 19.1.0 and TypeScript
@@ -101,14 +125,14 @@ This is a full-stack application with separate backend and frontend components:
 - **Linting**: ESLint with Next.js and TypeScript configurations
 
 ### Configuration Architecture
-- **AppConfig** (`src/config/config.py`): Pydantic-based configuration with environment variable loading, includes ModelSize enum and path helpers
+- **AppConfig** (`api/src/config/config.py`): Pydantic-based configuration with environment variable loading, includes ModelSize enum and path helpers
 - **Environment Loading**: Uses python-dotenv with fallback defaults, supports both .env files and direct environment variables
 
 ### Task Management
 - **Background Processing**: FastAPI BackgroundTasks for non-blocking transcription
 - **Task Persistence**: JSON-based storage in `public/transcriptions/tasks.json` with fallback to temp directory
 - **Task States**: PENDING → PROCESSING → COMPLETED/FAILED with datetime tracking
-- **Task Schema**: Pydantic models in `src/models/schemas.py` with proper serialization
+- **Task Schema**: Pydantic models in `api/src/models/schemas.py` with proper serialization
 
 ### API Layer Structure
 - **Route Organization**: Separate routers for `/transcribe` and `/health` endpoints
@@ -119,7 +143,7 @@ This is a full-stack application with separate backend and frontend components:
 - **Frame Extraction**: `/transcribe/extract-frames` endpoint for extracting video frames
 
 ### Logging Architecture
-- **Global Logger Setup**: Centralized configuration in `src/core/logger_config.py`
+- **Global Logger Setup**: Centralized configuration in `api/src/core/logger_config.py`
 - **Colored Formatting**: Custom ColoredFormatter for development visibility
 - **Module-specific Loggers**: `get_logger(__name__)` pattern throughout codebase
 - **Dual Output**: Console (colored) + file logging with UTF-8 encoding
