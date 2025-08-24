@@ -893,24 +893,40 @@ async def batch_upload_video(
                 except Exception as e:
                     logger.warning(f"Não foi possível remover o arquivo temporário: {e}")
                 
-                # Cria tarefa principal (vamos usar apenas a transcrição limpa para o lote)
-                task = service.create_task(f"{task_id}_limpa", audio_filename)
-                batch_task.task = task
-                batch_task.status = "pending"
+                # Cria 4 transcrições automaticamente com diferentes configurações
+                transcription_tasks = []
                 
-                # Adiciona tarefa de transcrição em background (apenas versão limpa)
-                background_tasks.add_task(
-                    service.process_transcription,
-                    task_id=f"{task_id}_limpa",
-                    audio_path=str(audio_path),
-                    output_format="txt",
-                    force_cpu=service.config.force_cpu,
-                    version_model=service.config.version_model,
-                    include_timestamps=False,
-                    include_speaker_diarization=False,
-                    base_task_id=task_id,
-                    transcription_suffix="limpa"
-                )
+                # Configurações das 4 transcrições
+                configs = [
+                    {"timestamps": False, "diarization": False, "suffix": "limpa"},
+                    {"timestamps": True, "diarization": False, "suffix": "timestamps"},
+                    {"timestamps": False, "diarization": True, "suffix": "diarization"},
+                    {"timestamps": True, "diarization": True, "suffix": "completa"}
+                ]
+                
+                for config in configs:
+                    transcription_task_id = f"{task_id}_{config['suffix']}"
+                    task = service.create_task(transcription_task_id, audio_filename)
+                    transcription_tasks.append(task)
+                    logger.info(f"Transcrição {config['suffix']} criada: {transcription_task_id}")
+                    
+                    # Adiciona tarefa de transcrição em background
+                    background_tasks.add_task(
+                        service.process_transcription,
+                        task_id=transcription_task_id,
+                        audio_path=str(audio_path),
+                        output_format="txt",
+                        force_cpu=service.config.force_cpu,
+                        version_model=service.config.version_model,
+                        include_timestamps=config["timestamps"],
+                        include_speaker_diarization=config["diarization"],
+                        base_task_id=task_id,
+                        transcription_suffix=config["suffix"]
+                    )
+                
+                # Para compatibilidade com a resposta, usa a primeira tarefa (limpa) como principal
+                batch_task.task = transcription_tasks[0]
+                batch_task.status = "pending"
                 
                 logger.info(f"Vídeo {file.filename} processado e adicionado ao lote {batch_id}")
                 
