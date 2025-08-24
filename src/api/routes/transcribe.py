@@ -677,7 +677,7 @@ async def batch_upload_audio(
             )
         
         # Gera ID do lote
-        batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
         
         batch_tasks: List[BatchUploadTask] = []
         config = service.config
@@ -809,7 +809,7 @@ async def batch_upload_video(
             )
         
         # Gera ID do lote
-        batch_id = f"batch_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        batch_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
         
         batch_tasks: List[BatchUploadTask] = []
         extractor = VideoAudioExtractor()
