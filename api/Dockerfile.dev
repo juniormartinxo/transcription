@@ -1,0 +1,51 @@
+# Dockerfile.dev - Development with Hot Reload
+FROM python:3.10-slim
+
+# Argumentos para UID/GID personalizáveis
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+
+# Instalar dependências do sistema
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Criar usuário não-root com UID/GID customizáveis
+RUN groupadd -g ${GROUP_ID} appuser && \
+    useradd -r -u ${USER_ID} -g appuser -d /home/appuser -m appuser
+
+# Configurar diretório de trabalho
+WORKDIR /app
+
+# Copiar e instalar dependências Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Instalar uvicorn com hot reload para desenvolvimento
+RUN pip install --no-cache-dir "uvicorn[standard]"
+
+# Criar diretórios necessários
+RUN mkdir -p /app/src /app/public/audios /app/public/transcriptions /app/public/videos /app/logs /app/cache/huggingface /app/cache/torch
+
+# Configurar permissões
+RUN chown -R appuser:appuser /app
+RUN chmod -R 755 /app
+
+# Configurar diretórios home do usuário
+RUN mkdir -p /home/appuser/.cache /home/appuser/.config
+RUN chown -R appuser:appuser /home/appuser
+
+# Mudar para usuário não-root
+USER appuser
+
+# Configurar variáveis de ambiente para desenvolvimento
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV DEVELOPMENT=true
+
+# Expor porta
+EXPOSE 8000
+
+# Comando padrão com hot reload
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "src/", "--reload-dir", "./"]
