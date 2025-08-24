@@ -57,24 +57,27 @@ RUN mkdir -p \
     /app/cache/huggingface \
     /app/cache/torch
 
-# Copiar e instalar dependências Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Ajustar permissões ANTES de mudar para usuário não-root
+RUN chown -R appuser:appuser /app /home/appuser && \
+    chmod -R 755 /app /home/appuser
 
-# Aplicar correção do patchelf para ctranslate2
-RUN find /usr/local/lib/python*/site-packages/ -name "*ctranslate2*.so*" -exec patchelf --clear-execstack {} \; 2>/dev/null || true
+# Mudar para usuário não-root ANTES de instalar dependências Python
+USER appuser
+
+# Copiar e instalar dependências Python como usuário não-root
+COPY requirements.txt .
+RUN pip install --user --no-cache-dir --upgrade pip && \
+    pip install --user --no-cache-dir -r requirements.txt
+
+# Adicionar diretório do usuário ao PATH
+ENV PATH="/home/appuser/.local/bin:${PATH}"
+
+# Aplicar correção do patchelf para ctranslate2 (como usuário não-root)
+RUN find /home/appuser/.local/lib/python*/site-packages/ -name "*ctranslate2*.so*" -exec patchelf --clear-execstack {} \; 2>/dev/null || true
 
 # Copiar código da aplicação
 COPY src/ src/
 COPY main.py .
-
-# Ajustar permissões
-RUN chown -R appuser:appuser /app /home/appuser && \
-    chmod -R 755 /app /home/appuser
-
-# Mudar para usuário não-root
-USER appuser
 
 # Exposer porta
 EXPOSE 8000
