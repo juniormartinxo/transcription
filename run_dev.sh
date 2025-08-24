@@ -61,28 +61,39 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Usa Python do venv se existir
-if [[ -f "venv/bin/python" ]]; then
-    PYTHON_CMD="venv/bin/python"
+if [[ -f "api/venv/bin/python" ]]; then
+    PYTHON_CMD="api/venv/bin/python"
     echo -e "${GREEN}✅ Usando ambiente virtual${NC}"
-elif [[ -f "venv/Scripts/python.exe" ]]; then
-    PYTHON_CMD="venv/Scripts/python.exe"
+elif [[ -f "api/venv/Scripts/python.exe" ]]; then
+    PYTHON_CMD="api/venv/Scripts/python.exe"
     echo -e "${GREEN}✅ Usando ambiente virtual${NC}"
 else
     echo -e "${YELLOW}⚠️  Ambiente virtual não encontrado, usando Python global${NC}"
-    echo -e "${BLUE}💡 Para melhor compatibilidade, execute: python run_venv.py${NC}"
+    echo -e "${BLUE}💡 Para melhor compatibilidade, execute: cd api && python run_venv.py${NC}"
 fi
 
 # Instala dependências do frontend se necessário
 if [[ ! -d "frontend/node_modules" ]]; then
     echo -e "${YELLOW}📦 Instalando dependências do frontend...${NC}"
-    cd frontend && npm install && cd ..
+    CURRENT_DIR=$(pwd)
+    cd "$CURRENT_DIR/frontend" && npm install
+    cd "$CURRENT_DIR"
     echo -e "${GREEN}✅ Dependências do frontend instaladas${NC}"
 fi
 
 # Inicia backend em background
 echo -e "${BLUE}🚀 Iniciando backend (FastAPI)...${NC}"
-$PYTHON_CMD main.py > backend.log 2>&1 &
+# Ajusta o comando Python para funcionar dentro do diretório api
+if [[ $PYTHON_CMD == api/* ]]; then
+    API_PYTHON_CMD=${PYTHON_CMD#api/}
+else
+    API_PYTHON_CMD=$PYTHON_CMD
+fi
+CURRENT_DIR=$(pwd)
+echo -e "${BLUE}📍 Usando Python: $API_PYTHON_CMD${NC}"
+cd "$CURRENT_DIR/api" && $API_PYTHON_CMD main.py > ../backend.log 2>&1 &
 BACKEND_PID=$!
+cd "$CURRENT_DIR"
 
 # Aguarda backend inicializar
 echo -e "${YELLOW}⏳ Aguardando backend inicializar...${NC}"
@@ -97,9 +108,10 @@ fi
 
 # Inicia frontend em background
 echo -e "${BLUE}🎨 Iniciando frontend (Next.js)...${NC}"
-cd frontend && npm run dev > ../frontend.log 2>&1 &
+CURRENT_DIR=$(pwd)
+cd "$CURRENT_DIR/frontend" && npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
-cd ..
+cd "$CURRENT_DIR"
 
 # Aguarda frontend inicializar
 echo -e "${YELLOW}⏳ Aguardando frontend inicializar...${NC}"
