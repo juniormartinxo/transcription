@@ -119,9 +119,19 @@ def run_application():
         print("🔍 Health check: http://localhost:8000/health")
         print("⏹️  Para parar: Ctrl+C")
         
-        # Executar a aplicação usando o Python do venv
+        # Executar a aplicação usando o Python do venv com uvicorn e hot reload
         subprocess.run([
-            python_path, "main.py"
+            python_path, "-m", "uvicorn", "main:app",
+            "--host", "0.0.0.0",
+            "--port", "8000",
+            "--reload",
+            "--reload-dir", "src/",
+            "--reload-dir", "./",
+            "--reload-exclude", "*.pyc",
+            "--reload-exclude", "__pycache__",
+            "--reload-exclude", "*.log",
+            "--reload-exclude", "venv/",
+            "--reload-exclude", ".env"
         ])
         
     except KeyboardInterrupt:
