@@ -37,9 +37,11 @@ The project is organized with separate directories for API and frontend:
 # Run both backend and frontend simultaneously (recommended)
 python run_full_stack.py              # Starts API + Next.js frontend
 
-# Backend only (FastAPI)
-cd api && python run_local.py         # Auto-setup and run locally
-cd api && python run_venv.py          # Auto-setup with venv and run
+# Backend only (FastAPI) - With Hot Reload
+cd api && python run_local.py         # Auto-setup and run with hot reload
+cd api && python run_venv.py          # Auto-setup with venv and hot reload
+cd api && python run_dev.py           # Development server with hot reload
+cd api && ./dev.sh                    # Quick development server (bash)
 cd api && ./scripts/setup_local.sh    # Manual setup only
 cd api && ./scripts/setup_venv.sh     # Manual venv setup only
 cd api && source venv/bin/activate    # Activate existing venv
