@@ -596,6 +596,51 @@ async def cancel_transcription(
         logger.error(f"Erro ao cancelar tarefa: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.delete("/tasks-database")
+async def delete_tasks_database(
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Exclui o arquivo tasks.json (banco de dados de tarefas)
+    ATENÇÃO: Esta operação removerá permanentemente o histórico de todas as tarefas
+    """
+    try:
+        tasks_file = service.tasks_file
+        
+        # Verifica se o arquivo existe
+        if not tasks_file.exists():
+            return {
+                "message": "Arquivo tasks.json não encontrado",
+                "file_path": str(tasks_file),
+                "status": "not_found"
+            }
+        
+        # Remove o arquivo
+        tasks_file.unlink()
+        logger.info(f"Arquivo tasks.json removido: {tasks_file}")
+        
+        # Limpa o cache em memória
+        service._tasks = {}
+        
+        return {
+            "message": "Arquivo tasks.json excluído com sucesso",
+            "file_path": str(tasks_file),
+            "status": "deleted"
+        }
+        
+    except PermissionError:
+        logger.error(f"Sem permissão para excluir o arquivo: {tasks_file}")
+        raise HTTPException(
+            status_code=403,
+            detail="Sem permissão para excluir o arquivo tasks.json"
+        )
+    except Exception as e:
+        logger.error(f"Erro ao excluir tasks.json: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro interno ao excluir arquivo: {str(e)}"
+        )
+
 @router.delete("/{task_id}")
 async def delete_transcription(
     task_id: str,
@@ -955,47 +1000,3 @@ async def batch_upload_video(
         logger.error(f"Erro no upload em lote de vídeos: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.delete("/tasks-database")
-async def delete_tasks_database(
-    service: TranscriptionService = Depends(get_transcription_service)
-):
-    """
-    Exclui o arquivo tasks.json (banco de dados de tarefas)
-    ATENÇÃO: Esta operação removerá permanentemente o histórico de todas as tarefas
-    """
-    try:
-        tasks_file = service.tasks_file
-        
-        # Verifica se o arquivo existe
-        if not tasks_file.exists():
-            return {
-                "message": "Arquivo tasks.json não encontrado",
-                "file_path": str(tasks_file),
-                "status": "not_found"
-            }
-        
-        # Remove o arquivo
-        tasks_file.unlink()
-        logger.info(f"Arquivo tasks.json removido: {tasks_file}")
-        
-        # Limpa o cache em memória
-        service._tasks = {}
-        
-        return {
-            "message": "Arquivo tasks.json excluído com sucesso",
-            "file_path": str(tasks_file),
-            "status": "deleted"
-        }
-        
-    except PermissionError:
-        logger.error(f"Sem permissão para excluir o arquivo: {tasks_file}")
-        raise HTTPException(
-            status_code=403,
-            detail="Sem permissão para excluir o arquivo tasks.json"
-        )
-    except Exception as e:
-        logger.error(f"Erro ao excluir tasks.json: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro interno ao excluir arquivo: {str(e)}"
-        )
