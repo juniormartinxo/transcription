@@ -1,0 +1,130 @@
+# docker-compose.prod.yml - Configuração para Produção
+version: '3.8'
+
+networks:
+  transcription-network:
+    driver: bridge
+
+services:
+  # Backend FastAPI
+  backend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_ENV: production
+    container_name: transcription-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    networks:
+      - transcription-network
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      - VERSION_MODEL=${VERSION_MODEL:-turbo}
+      - FORCE_CPU=${FORCE_CPU:-true}
+      - AUDIOS_DIR=/app/public/audios
+      - TRANSCRIPTIONS_DIR=/app/public/transcriptions
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=/app/logs/app.log
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - MPLCONFIGDIR=/home/appuser/.config/matplotlib
+      - HOME=/home/appuser
+      - XDG_CACHE_HOME=/home/appuser/.cache
+      - XDG_CONFIG_HOME=/home/appuser/.config
+    volumes:
+      # Apenas volumes de dados persistentes (sem volumes de desenvolvimento)
+      - type: bind
+        source: ./public/audios
+        target: /app/public/audios
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./public/transcriptions
+        target: /app/public/transcriptions
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./public/videos
+        target: /app/public/videos
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./logs
+        target: /app/logs
+        bind:
+          create_host_path: true
+      # Cache volumes
+      - type: volume
+        source: huggingface_cache
+        target: /app/cache/huggingface
+        volume:
+          nocopy: true
+      - type: volume
+        source: torch_cache
+        target: /app/cache/torch
+        volume:
+          nocopy: true
+      - type: volume
+        source: matplotlib_config
+        target: /home/appuser/.config/matplotlib
+        volume:
+          nocopy: true
+    deploy:
+      resources:
+        limits:
+          memory: ${MEMORY_LIMIT_BACKEND:-6G}
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Mais tempo em produção para carregar modelos
+    security_opt:
+      - no-new-privileges:true
+    init: true
+
+  # Frontend Next.js
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: transcription-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - transcription-network
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_TELEMETRY_DISABLED=1
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    deploy:
+      resources:
+        limits:
+          memory: ${MEMORY_LIMIT_FRONTEND:-1G}
+        reservations:
+          memory: 256M
+
+volumes:
+  huggingface_cache:
+    name: transcription_huggingface_cache
+  torch_cache:
+    name: transcription_torch_cache
+  matplotlib_config:
+    name: transcription_matplotlib_config
