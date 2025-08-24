@@ -15,14 +15,12 @@ type UploadMode = 'audio' | 'video' | 'frames';
 const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCreated }) => {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ loaded: 0, total: 0, percentage: 0 });
   const [uploadMode, setUploadMode] = useState<UploadMode>('audio');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [fileProgresses, setFileProgresses] = useState<FileUploadProgress[]>([]);
   const [batchResult, setBatchResult] = useState<BatchUploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoModeMessage, setAutoModeMessage] = useState<string | null>(null);
-  const [isMultipleMode, setIsMultipleMode] = useState(false);
 
   // Configurações para transcrição de áudio
   const [audioOptions, setAudioOptions] = useState<TranscriptionRequest>({
@@ -61,7 +59,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
       const files = Array.from(e.dataTransfer.files);
       handleFilesSelected(files);
     }
-  }, [uploadMode]);
+  }, []);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -95,7 +93,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
     }
     
     setSelectedFiles(files);
-    setIsMultipleMode(files.length > 1);
     setError(null);
     setBatchResult(null);
     
@@ -114,8 +111,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
     setBatchResult(null);
     setError(null);
     setAutoModeMessage(null);
-    setIsMultipleMode(false);
-    setUploadProgress({ loaded: 0, total: 0, percentage: 0 });
   };
 
   const removeFile = (indexToRemove: number) => {
@@ -124,7 +119,6 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
     
     setSelectedFiles(updatedFiles);
     setFileProgresses(updatedProgresses);
-    setIsMultipleMode(updatedFiles.length > 1);
     
     if (updatedFiles.length === 0) {
       resetUpload();
