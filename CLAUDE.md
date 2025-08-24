@@ -216,4 +216,100 @@ This hardware requires PyTorch Nightly (2.9.0.dev+cu128) due to CUDA sm_120 arch
 
 ### Frontend URLs (Port 3000)
 - `http://localhost:3000/`: Main dashboard with file upload and task management
+- `http://localhost:3000/api/health`: Frontend health check endpoint
 - Interactive UI for uploading audio/video files and monitoring transcriptions
+
+## Recent Improvements and Fixes
+
+### Multiple File Upload Implementation (August 2024)
+- ✅ **Batch Upload Support**: Implemented multiple file upload functionality for both audio and video files
+- ✅ **Backend Batch Endpoints**: Added `/transcribe/batch-audio` and `/transcribe/batch-video` endpoints
+- ✅ **Frontend UI**: Updated FileUploader component to handle multiple files with individual progress tracking
+- ✅ **Dashboard Integration**: Enhanced TranscriptionDashboard with batch task support and visual indicators
+
+### Performance Optimizations (August 2024)
+- ✅ **Fixed Critical Polling Bug**: Resolved "Cannot access 'intervalId' before initialization" error causing frontend freezing during uploads
+- ✅ **Optimized Progress Updates**: Added throttling and debouncing to progress callbacks (50ms debounce, 1% threshold)
+- ✅ **Adaptive Polling**: Implemented smart polling intervals (5s for ≤5 tasks, 10s for >5 tasks)
+- ✅ **Reduced Re-renders**: Optimized state updates to prevent unnecessary component re-renders
+- ✅ **Integer Progress Display**: Progress percentages now show as integers instead of decimals
+
+### Video Processing Enhancements (August 2024)
+- ✅ **Consistent Transcription Creation**: Fixed batch video upload to create all 4 transcription types (limpa, timestamps, diarization, completa) like individual uploads
+- ✅ **Folder Naming Cleanup**: Removed "batch_video_" prefix from automatically generated folder names
+- ✅ **Improved Error Handling**: Enhanced error reporting and fallback mechanisms for batch operations
+
+### Docker Implementation (August 2024)
+- ✅ **Full-Stack Docker Setup**: Complete containerization with separate frontend and backend containers
+- ✅ **Production-Ready Configuration**: Optimized Dockerfiles with multi-stage builds, non-root users, and security hardening
+- ✅ **Development Support**: Docker Compose with hot-reload volumes for development workflow
+- ✅ **Automated Setup**: Added `docker-start.sh` script for easy initialization with health checks
+- ✅ **Documentation**: Comprehensive README.Docker.md with troubleshooting and best practices
+
+## Docker Usage
+
+### Quick Start
+```bash
+# Copy environment template and configure
+cp .env.example .env
+# Edit .env and add your HUGGING_FACE_HUB_TOKEN
+
+# Easy startup with automated checks
+./docker-start.sh
+
+# Or manual startup
+docker compose up --build -d
+
+# Production deployment
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+### Docker Architecture
+- **Backend**: FastAPI container (port 8000) with WhisperX and PyAnnote
+- **Frontend**: Next.js container (port 3000) with React interface  
+- **Networking**: Isolated bridge network for secure service communication
+- **Volumes**: Persistent data storage + optimized caching for models
+- **Security**: Non-root users, no-new-privileges, security-hardened containers
+
+### Container URLs
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000  
+- **API Documentation**: http://localhost:8000/docs
+- **Health Checks**: Automatic monitoring with 30s intervals
+
+## Important Bug Fixes
+
+### Frontend Freezing Issue (Fixed August 2024)
+**Problem**: Frontend would freeze completely when uploading multiple files (especially 6+ videos)
+**Root Cause**: Variable scoping issue in polling function - `intervalId` referenced before initialization
+**Solution**: Restructured polling logic with proper variable initialization and cleanup
+
+### Inconsistent Transcription Creation (Fixed August 2024) 
+**Problem**: Batch video uploads only created "limpa" transcription, while individual uploads created all 4 types
+**Root Cause**: Batch endpoint used simplified logic instead of mirroring individual endpoint behavior
+**Solution**: Updated batch processing to create all 4 transcription variants (limpa, timestamps, diarization, completa)
+
+### Performance Issues (Fixed August 2024)
+**Problem**: UI became unresponsive during file uploads due to excessive progress updates
+**Root Cause**: Progress callbacks firing for every small increment without throttling
+**Solution**: Implemented debouncing (50ms), throttling (1% threshold), and optimized state updates
+
+## Technical Debt and Maintenance
+
+### Code Quality Improvements
+- Implemented proper error boundaries and loading states
+- Added TypeScript strict typing throughout the application  
+- Optimized API calls with proper retry mechanisms and timeout handling
+- Enhanced logging with structured formats and appropriate levels
+
+### Performance Monitoring
+- Real-time progress tracking for individual and batch uploads
+- Memory usage optimization with proper cleanup of event listeners
+- Efficient polling strategies that adapt to system load
+- Optimized Docker resource allocation (6GB backend, 1GB frontend)
+
+### Security Enhancements  
+- Container security hardening with non-root users
+- Proper secrets management for API tokens
+- CORS configuration for secure cross-origin requests
+- File validation and size limits to prevent abuse
