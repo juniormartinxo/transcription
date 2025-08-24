@@ -1,5 +1,5 @@
 # Dockerfile.dev - Frontend Development with Hot Reload
-FROM node:18-alpine
+FROM node:22.18.0-alpine
 
 # Instalar dependências básicas
 RUN apk add --no-cache libc6-compat curl
