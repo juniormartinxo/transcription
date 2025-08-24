@@ -3,7 +3,7 @@
 import React, { useCallback, useState } from 'react';
 import { Upload, FileAudio, Video, Image, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { TranscriptionAPI, formatFileSize } from '@/lib/api';
-import { TranscriptionTask, TranscriptionRequest, UploadProgress, VideoExtractionResponse, FrameExtractionResponse } from '@/lib/types';
+import { TranscriptionTask, TranscriptionRequest, UploadProgress, VideoExtractionResponse, FrameExtractionResponse, FileUploadProgress, BatchUploadResult } from '@/lib/types';
 
 interface FileUploaderProps {
   onUploadComplete?: (result: unknown) => void;
@@ -17,10 +17,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({ loaded: 0, total: 0, percentage: 0 });
   const [uploadMode, setUploadMode] = useState<UploadMode>('audio');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadResult, setUploadResult] = useState<TranscriptionTask | VideoExtractionResponse | FrameExtractionResponse | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileProgresses, setFileProgresses] = useState<FileUploadProgress[]>([]);
+  const [batchResult, setBatchResult] = useState<BatchUploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [autoModeMessage, setAutoModeMessage] = useState<string | null>(null);
+  const [isMultipleMode, setIsMultipleMode] = useState(false);
 
   // Configurações para transcrição de áudio
   const [audioOptions, setAudioOptions] = useState<TranscriptionRequest>({
@@ -55,127 +57,198 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
     e.stopPropagation();
     setDragActive(false);
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      
-      // Auto-detecta o modo baseado no tipo de arquivo
-      const isVideoFile = file.type.startsWith('video/') || 
-                         ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv', '.3gp', '.m4v']
-                           .some(ext => file.name.toLowerCase().endsWith(ext));
-      
-      const isAudioFile = file.type.startsWith('audio/') ||
-                         ['.wav', '.mp3', '.ogg', '.m4a', '.flac', '.aac']
-                           .some(ext => file.name.toLowerCase().endsWith(ext));
-      
-      // Auto-seleciona o modo apropriado
-      if (isVideoFile && uploadMode === 'audio') {
-        setUploadMode('video');
-        setAutoModeMessage('Arquivo de vídeo detectado! Modo alterado automaticamente para "Transcrever Vídeo".');
-      } else if (isAudioFile && (uploadMode === 'video' || uploadMode === 'frames')) {
-        setUploadMode('audio');
-        setAutoModeMessage('Arquivo de áudio detectado! Modo alterado automaticamente para "Transcrever Áudio".');
-      } else {
-        setAutoModeMessage(null);
-      }
-      
-      setSelectedFile(file);
-      setError(null);
-      setUploadResult(null);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      handleFilesSelected(files);
     }
   }, [uploadMode]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      
-      // Auto-detecta o modo baseado no tipo de arquivo
-      const isVideoFile = file.type.startsWith('video/') || 
-                         ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv', '.3gp', '.m4v']
-                           .some(ext => file.name.toLowerCase().endsWith(ext));
-      
-      const isAudioFile = file.type.startsWith('audio/') ||
-                         ['.wav', '.mp3', '.ogg', '.m4a', '.flac', '.aac']
-                           .some(ext => file.name.toLowerCase().endsWith(ext));
-      
-      // Auto-seleciona o modo apropriado
-      if (isVideoFile && uploadMode === 'audio') {
-        setUploadMode('video');
-        setAutoModeMessage('Arquivo de vídeo detectado! Modo alterado automaticamente para "Transcrever Vídeo".');
-      } else if (isAudioFile && (uploadMode === 'video' || uploadMode === 'frames')) {
-        setUploadMode('audio');
-        setAutoModeMessage('Arquivo de áudio detectado! Modo alterado automaticamente para "Transcrever Áudio".');
-      } else {
-        setAutoModeMessage(null);
-      }
-      
-      setSelectedFile(file);
-      setError(null);
-      setUploadResult(null);
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      handleFilesSelected(files);
     }
   };
 
+  const handleFilesSelected = (files: File[]) => {
+    if (files.length === 0) return;
+
+    // Auto-detecta o modo baseado no primeiro arquivo
+    const firstFile = files[0];
+    const isVideoFile = firstFile.type.startsWith('video/') || 
+                       ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv', '.3gp', '.m4v']
+                         .some(ext => firstFile.name.toLowerCase().endsWith(ext));
+    
+    const isAudioFile = firstFile.type.startsWith('audio/') ||
+                       ['.wav', '.mp3', '.ogg', '.m4a', '.flac', '.aac']
+                         .some(ext => firstFile.name.toLowerCase().endsWith(ext));
+    
+    // Auto-seleciona o modo apropriado
+    if (isVideoFile && uploadMode === 'audio') {
+      setUploadMode('video');
+      setAutoModeMessage(`${files.length} arquivo(s) de vídeo detectado(s)! Modo alterado automaticamente para "Transcrever Vídeo".`);
+    } else if (isAudioFile && (uploadMode === 'video' || uploadMode === 'frames')) {
+      setUploadMode('audio');
+      setAutoModeMessage(`${files.length} arquivo(s) de áudio detectado(s)! Modo alterado automaticamente para "Transcrever Áudio".`);
+    } else {
+      setAutoModeMessage(files.length > 1 ? `${files.length} arquivos selecionados.` : null);
+    }
+    
+    setSelectedFiles(files);
+    setIsMultipleMode(files.length > 1);
+    setError(null);
+    setBatchResult(null);
+    
+    // Inicializa o progresso dos arquivos
+    const initialProgress: FileUploadProgress[] = files.map(file => ({
+      file,
+      progress: { loaded: 0, total: 0, percentage: 0 },
+      status: 'pending' as const
+    }));
+    setFileProgresses(initialProgress);
+  };
+
   const resetUpload = () => {
-    setSelectedFile(null);
-    setUploadResult(null);
+    setSelectedFiles([]);
+    setFileProgresses([]);
+    setBatchResult(null);
     setError(null);
     setAutoModeMessage(null);
+    setIsMultipleMode(false);
     setUploadProgress({ loaded: 0, total: 0, percentage: 0 });
   };
 
+  const removeFile = (indexToRemove: number) => {
+    const updatedFiles = selectedFiles.filter((_, index) => index !== indexToRemove);
+    const updatedProgresses = fileProgresses.filter((_, index) => index !== indexToRemove);
+    
+    setSelectedFiles(updatedFiles);
+    setFileProgresses(updatedProgresses);
+    setIsMultipleMode(updatedFiles.length > 1);
+    
+    if (updatedFiles.length === 0) {
+      resetUpload();
+    }
+  };
+
   const handleUpload = async () => {
-    if (!selectedFile) return;
+    if (selectedFiles.length === 0) return;
 
     setUploading(true);
     setError(null);
 
     try {
-      const onProgress = (progress: UploadProgress) => {
-        setUploadProgress(progress);
+      const results: BatchUploadResult = {
+        files: [...fileProgresses],
+        totalFiles: selectedFiles.length,
+        completedFiles: 0,
+        errorFiles: 0
       };
 
-      let result;
+      // Callbacks para atualizar o progresso de cada arquivo
+      const onFileProgress = (fileIndex: number, progress: UploadProgress) => {
+        setFileProgresses(prev => prev.map((fp, index) => 
+          index === fileIndex 
+            ? { ...fp, progress, status: 'uploading' as const }
+            : fp
+        ));
+      };
 
-      // Detecta automaticamente se é vídeo baseado no tipo de arquivo
-      const isVideoFile = selectedFile.type.startsWith('video/') || 
-                         ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv', '.3gp', '.m4v']
-                           .some(ext => selectedFile.name.toLowerCase().endsWith(ext));
+      const onFileComplete = (fileIndex: number, result: TranscriptionTask | VideoExtractionResponse | FrameExtractionResponse) => {
+        setFileProgresses(prev => prev.map((fp, index) => 
+          index === fileIndex 
+            ? { ...fp, result, status: 'completed' as const }
+            : fp
+        ));
+        
+        results.completedFiles++;
+        
+        // Notifica sobre tarefas criadas para transcrições individuais
+        if ('task_id' in result && 'status' in result && onTaskCreated) {
+          onTaskCreated(result as TranscriptionTask);
+        }
+        // Para vídeos, notifica sobre múltiplas tarefas criadas
+        else if ('transcriptions' in result && onTaskCreated) {
+          (result as VideoExtractionResponse).transcriptions.forEach(task => onTaskCreated(task));
+        }
+      };
 
-      // Força o modo correto baseado no tipo do arquivo
-      if (uploadMode === 'audio' && isVideoFile) {
-        setError('Arquivo de vídeo detectado! Use o modo "Transcrever Vídeo" para arquivos de vídeo.');
-        return;
+      const onFileError = (fileIndex: number, error: string) => {
+        setFileProgresses(prev => prev.map((fp, index) => 
+          index === fileIndex 
+            ? { ...fp, error, status: 'error' as const }
+            : fp
+        ));
+        
+        results.errorFiles++;
+      };
+
+      // Valida tipos de arquivo
+      for (const file of selectedFiles) {
+        const isVideoFile = file.type.startsWith('video/') || 
+                           ['.mp4', '.avi', '.mov', '.mkv', '.webm', '.wmv', '.flv', '.3gp', '.m4v']
+                             .some(ext => file.name.toLowerCase().endsWith(ext));
+
+        if (uploadMode === 'audio' && isVideoFile) {
+          setError(`Arquivo de vídeo detectado (${file.name})! Use o modo "Transcrever Vídeo" para arquivos de vídeo.`);
+          return;
+        }
+
+        if ((uploadMode === 'video' || uploadMode === 'frames') && !isVideoFile) {
+          setError(`Arquivo de áudio detectado (${file.name})! Use o modo "Transcrever Áudio" para arquivos de áudio.`);
+          return;
+        }
       }
 
-      if ((uploadMode === 'video' || uploadMode === 'frames') && !isVideoFile) {
-        setError('Arquivo de áudio detectado! Use o modo "Transcrever Áudio" para arquivos de áudio.');
-        return;
-      }
-
+      // Executa uploads baseado no modo
       switch (uploadMode) {
         case 'audio':
-          result = await TranscriptionAPI.uploadAudio(selectedFile, audioOptions, onProgress);
-          if (onTaskCreated) onTaskCreated(result);
+          await TranscriptionAPI.uploadMultipleAudios(
+            selectedFiles,
+            audioOptions,
+            onFileProgress,
+            onFileComplete,
+            onFileError
+          );
           break;
         
         case 'video':
-          result = await TranscriptionAPI.uploadVideo(selectedFile, onProgress);
+          await TranscriptionAPI.uploadMultipleVideos(
+            selectedFiles,
+            onFileProgress,
+            onFileComplete,
+            onFileError
+          );
           break;
         
         case 'frames':
-          result = await TranscriptionAPI.extractFrames(selectedFile, frameOptions, onProgress);
+          // Para frames, processa um por vez usando a API existente
+          for (let i = 0; i < selectedFiles.length; i++) {
+            try {
+              const result = await TranscriptionAPI.extractFrames(
+                selectedFiles[i],
+                frameOptions,
+                (progress) => onFileProgress(i, progress)
+              );
+              onFileComplete(i, result);
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Erro no upload';
+              onFileError(i, errorMessage);
+            }
+          }
           break;
       }
 
-      setUploadResult(result);
-      if (onUploadComplete) onUploadComplete(result);
+      setBatchResult(results);
+      if (onUploadComplete) onUploadComplete(results);
 
     } catch (err: unknown) {
-      console.error('Erro no upload:', err);
+      console.error('Erro no upload em lote:', err);
       const errorMessage = err instanceof Error 
         ? err.message 
         : (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail || 
           (err as { message?: string })?.message || 
-          'Erro no upload';
+          'Erro no upload em lote';
       setError(errorMessage);
     } finally {
       setUploading(false);
@@ -248,7 +321,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
         className={`relative border-2 border-dashed rounded-lg p-8 text-center ${
           dragActive
             ? 'border-blue-400 bg-blue-50'
-            : selectedFile
+            : selectedFiles.length > 0
             ? 'border-green-400 bg-green-50'
             : 'border-gray-300 bg-gray-50'
         }`}
@@ -257,13 +330,31 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
         onDragOver={handleDrag}
         onDrop={handleDrop}
       >
-        {selectedFile ? (
+        {selectedFiles.length > 0 ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-center space-x-3">
-              {getFileIcon(selectedFile)}
-              <div>
-                <p className="font-medium text-gray-900">{selectedFile.name}</p>
-                <p className="text-sm text-gray-500">{formatFileSize(selectedFile.size)}</p>
+            {/* Resumo dos arquivos */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="flex -space-x-1">
+                  {selectedFiles.slice(0, 3).map((file, index) => (
+                    <div key={index} className="w-8 h-8 rounded-full bg-blue-100 border-2 border-white flex items-center justify-center">
+                      {getFileIcon(file)}
+                    </div>
+                  ))}
+                  {selectedFiles.length > 3 && (
+                    <div className="w-8 h-8 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center">
+                      <span className="text-xs font-medium text-gray-600">+{selectedFiles.length - 3}</span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {selectedFiles.length} arquivo{selectedFiles.length > 1 ? 's' : ''} selecionado{selectedFiles.length > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Total: {formatFileSize(selectedFiles.reduce((total, file) => total + file.size, 0))}
+                  </p>
+                </div>
               </div>
               <button
                 onClick={resetUpload}
@@ -274,17 +365,64 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
               </button>
             </div>
 
+            {/* Lista detalhada de arquivos */}
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {fileProgresses.map((fileProgress, index) => (
+                <div key={index} className="flex items-center space-x-3 p-2 bg-gray-50 rounded-lg">
+                  {getFileIcon(fileProgress.file)}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-900 truncate">{fileProgress.file.name}</p>
+                    <p className="text-xs text-gray-500">{formatFileSize(fileProgress.file.size)}</p>
+                  </div>
+                  
+                  {/* Status do arquivo */}
+                  <div className="flex items-center space-x-2">
+                    {fileProgress.status === 'uploading' && (
+                      <div className="flex items-center space-x-2">
+                        <div className="w-8 bg-gray-200 rounded-full h-1">
+                          <div
+                            className="bg-blue-600 h-1 rounded-full transition-all duration-300"
+                            style={{ width: `${fileProgress.progress.percentage}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-xs text-gray-600">{fileProgress.progress.percentage}%</span>
+                      </div>
+                    )}
+                    {fileProgress.status === 'completed' && (
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                    )}
+                    {fileProgress.status === 'error' && (
+                      <AlertCircle className="w-4 h-4 text-red-600" />
+                    )}
+                    {fileProgress.status === 'pending' && (
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                    )}
+                    
+                    {!uploading && (
+                      <button
+                        onClick={() => removeFile(index)}
+                        className="p-1 text-gray-400 hover:text-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {uploading && (
               <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Progresso geral:</span>
+                  <span>{batchResult?.completedFiles || 0} de {selectedFiles.length} concluídos</span>
+                </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress.percentage}%` }}
+                    style={{ width: `${((batchResult?.completedFiles || 0) / selectedFiles.length) * 100}%` }}
                   ></div>
                 </div>
-                <p className="text-sm text-gray-600">
-                  {uploadProgress.percentage}% - {formatFileSize(uploadProgress.loaded)} / {formatFileSize(uploadProgress.total)}
-                </p>
               </div>
             )}
           </div>
@@ -293,12 +431,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
             <Upload className="w-12 h-12 text-gray-400 mx-auto" />
             <div>
               <p className="text-lg font-medium text-gray-900 mb-2">
-                {uploadMode === 'audio' && 'Selecione um arquivo de áudio'}
-                {uploadMode === 'video' && 'Selecione um arquivo de vídeo para transcrever'}
-                {uploadMode === 'frames' && 'Selecione um arquivo de vídeo para extrair frames'}
+                {uploadMode === 'audio' && 'Selecione arquivo(s) de áudio'}
+                {uploadMode === 'video' && 'Selecione arquivo(s) de vídeo para transcrever'}
+                {uploadMode === 'frames' && 'Selecione arquivo(s) de vídeo para extrair frames'}
               </p>
               <p className="text-gray-600">
-                Arraste e solte aqui ou clique para selecionar
+                Arraste e solte aqui ou clique para selecionar múltiplos arquivos
               </p>
             </div>
           </div>
@@ -310,6 +448,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
           onChange={handleFileSelect}
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           disabled={uploading}
+          multiple
         />
       </div>
 
@@ -324,7 +463,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
       )}
 
       {/* Configurações específicas por modo */}
-      {selectedFile && !uploading && uploadResult === null ? (
+      {selectedFiles.length > 0 && !uploading && batchResult === null ? (
         <div className="mt-6 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-medium text-gray-900 mb-4">Configurações</h3>
           
@@ -424,47 +563,74 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
       ) : null}
 
       {/* Botão de upload */}
-      {selectedFile && uploadResult === null && (
+      {selectedFiles.length > 0 && batchResult === null && (
         <div className="mt-6">
           <button
             onClick={handleUpload}
             disabled={uploading}
             className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            {uploading ? 'Processando...' : `Iniciar ${uploadMode === 'audio' ? 'Transcrição' : uploadMode === 'video' ? 'Extração e Transcrição' : 'Extração de Frames'}`}
+            {uploading ? `Processando ${selectedFiles.length} arquivo${selectedFiles.length > 1 ? 's' : ''}...` : `Iniciar ${uploadMode === 'audio' ? 'Transcrições' : uploadMode === 'video' ? 'Extrações e Transcrições' : 'Extrações de Frames'} (${selectedFiles.length} arquivo${selectedFiles.length > 1 ? 's' : ''})`}
           </button>
         </div>
       )}
 
       {/* Resultados */}
-      {uploadResult && (
+      {batchResult && (
         <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex items-center space-x-2 mb-3">
             <CheckCircle className="w-5 h-5 text-green-600" />
-            <h3 className="font-medium text-green-900">Upload Concluído!</h3>
+            <h3 className="font-medium text-green-900">
+              Upload em Lote Concluído! ({batchResult.completedFiles}/{batchResult.totalFiles} arquivos processados)
+            </h3>
           </div>
           
-          {uploadMode === 'audio' && uploadResult && 'task_id' in uploadResult && (
-            <p className="text-sm text-green-800">
-              Transcrição iniciada. Task ID: <code className="bg-green-100 px-2 py-1 rounded">{uploadResult.task_id}</code>
-            </p>
-          )}
-          
-          {uploadMode === 'video' && uploadResult && 'summary' in uploadResult && (
-            <div className="text-sm text-green-800">
-              <p>Áudio extraído e {(uploadResult as VideoExtractionResponse).summary?.total} transcrições iniciadas:</p>
-              <ul className="list-disc list-inside mt-2">
-                {(uploadResult as VideoExtractionResponse).summary?.types?.map((type: string) => (
-                  <li key={type}>{type}</li>
-                ))}
-              </ul>
+          {batchResult.errorFiles > 0 && (
+            <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+              <p className="text-sm text-yellow-800">
+                ⚠️ {batchResult.errorFiles} arquivo{batchResult.errorFiles > 1 ? 's' : ''} com erro{batchResult.errorFiles > 1 ? 's' : ''}
+              </p>
             </div>
           )}
           
-          {uploadMode === 'frames' && uploadResult && 'extraction' in uploadResult && (
-            <p className="text-sm text-green-800">
-              {(uploadResult as FrameExtractionResponse).extraction?.frame_count} frames extraídos para: {(uploadResult as FrameExtractionResponse).extraction?.output_dir}
-            </p>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {fileProgresses.map((fileProgress, index) => (
+              <div key={index} className="flex items-center justify-between p-2 bg-white rounded border">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4">
+                    {fileProgress.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-600" />}
+                    {fileProgress.status === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                  </div>
+                  <span className="text-sm font-medium truncate max-w-48">{fileProgress.file.name}</span>
+                </div>
+                
+                <div className="text-xs text-gray-600">
+                  {fileProgress.status === 'completed' && (
+                    <span className="text-green-600">
+                      {uploadMode === 'audio' && 'task_id' in fileProgress.result! && 'Transcrição iniciada'}
+                      {uploadMode === 'video' && 'transcriptions' in fileProgress.result! && `${(fileProgress.result as VideoExtractionResponse).summary?.total} transcrições`}
+                      {uploadMode === 'frames' && 'extraction' in fileProgress.result! && `${(fileProgress.result as FrameExtractionResponse).extraction?.frame_count} frames`}
+                    </span>
+                  )}
+                  {fileProgress.status === 'error' && (
+                    <span className="text-red-600 truncate max-w-32" title={fileProgress.error}>
+                      {fileProgress.error}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {uploadMode === 'video' && batchResult.completedFiles > 0 && (
+            <div className="mt-3 text-sm text-green-800">
+              <p>
+                Total de transcrições iniciadas: {' '}
+                {fileProgresses
+                  .filter(fp => fp.status === 'completed' && fp.result && 'transcriptions' in fp.result)
+                  .reduce((total, fp) => total + ((fp.result as VideoExtractionResponse).summary?.total || 0), 0)}
+              </p>
+            </div>
           )}
         </div>
       )}
