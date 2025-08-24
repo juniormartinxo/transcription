@@ -18,26 +18,28 @@ RUN groupadd -g ${GROUP_ID} appuser && \
 # Configurar diretório de trabalho
 WORKDIR /app
 
-# Copiar e instalar dependências Python
-COPY api/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Instalar uvicorn com hot reload para desenvolvimento
-RUN pip install --no-cache-dir "uvicorn[standard]"
-
 # Criar diretórios necessários
 RUN mkdir -p /app/src /app/public/audios /app/public/transcriptions /app/public/videos /app/logs /app/cache/huggingface /app/cache/torch
 
-# Configurar permissões
-RUN chown -R appuser:appuser /app
-RUN chmod -R 755 /app
-
 # Configurar diretórios home do usuário
 RUN mkdir -p /home/appuser/.cache /home/appuser/.config
-RUN chown -R appuser:appuser /home/appuser
 
-# Mudar para usuário não-root
+# Configurar permissões
+RUN chown -R appuser:appuser /app /home/appuser
+RUN chmod -R 755 /app /home/appuser
+
+# Mudar para usuário não-root ANTES de instalar dependências Python
 USER appuser
+
+# Copiar e instalar dependências Python como usuário não-root
+COPY api/requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# Instalar uvicorn com hot reload para desenvolvimento
+RUN pip install --user --no-cache-dir "uvicorn[standard]"
+
+# Adicionar diretório do usuário ao PATH
+ENV PATH="/home/appuser/.local/bin:${PATH}"
 
 # Configurar variáveis de ambiente para desenvolvimento
 ENV PYTHONPATH=/app
