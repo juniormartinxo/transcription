@@ -139,13 +139,33 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
         errorFiles: 0
       };
 
-      // Callbacks para atualizar o progresso de cada arquivo
+      // Callbacks para atualizar o progresso de cada arquivo (com debouncing)
+      let progressTimeout: NodeJS.Timeout | null = null;
       const onFileProgress = (fileIndex: number, progress: UploadProgress) => {
-        setFileProgresses(prev => prev.map((fp, index) => 
-          index === fileIndex 
-            ? { ...fp, progress, status: 'uploading' as const }
-            : fp
-        ));
+        if (progressTimeout) {
+          clearTimeout(progressTimeout);
+        }
+        
+        progressTimeout = setTimeout(() => {
+          setFileProgresses(prev => {
+            const updated = prev.map((fp, index) => {
+              if (index === fileIndex) {
+                // Só atualiza se mudou pelo menos 1%
+                const oldProgress = fp.progress.percentage;
+                const newProgress = progress.percentage;
+                if (Math.abs(newProgress - oldProgress) >= 1 || newProgress === 100) {
+                  return { ...fp, progress, status: 'uploading' as const };
+                }
+                return fp;
+              }
+              return fp;
+            });
+            
+            // Só retorna novo estado se algo mudou
+            const hasChanges = updated.some((fp, index) => fp !== prev[index]);
+            return hasChanges ? updated : prev;
+          });
+        }, 50); // Debounce reduzido para 50ms
       };
 
       const onFileComplete = (fileIndex: number, result: TranscriptionTask | VideoExtractionResponse | FrameExtractionResponse) => {
