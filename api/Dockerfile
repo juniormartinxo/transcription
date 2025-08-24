@@ -1,5 +1,5 @@
 # Dockerfile - Backend FastAPI
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 # Argumentos de build
 ARG BUILD_ENV=production
