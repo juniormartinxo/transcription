@@ -101,8 +101,10 @@ class TranscriptionService:
     def _get_transcriber(self, force_cpu: Optional[bool], version_model: Optional[str]) -> AudioTranscriber:
         """Obtém ou cria uma instância do transcritor"""
         if self.transcriber is None:
+            # Convert ModelSize enum to string value
+            model_size = version_model or self.config.version_model.value
             self.transcriber = AudioTranscriber(
-                version_model=version_model or self.config.version_model,
+                version_model=model_size,
                 hf_token=self.config.hf_token,
                 force_cpu=force_cpu if force_cpu is not None else self.config.force_cpu
             )
