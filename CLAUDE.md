@@ -215,14 +215,22 @@ This hardware requires PyTorch Nightly (2.9.0.dev+cu128) due to CUDA sm_120 arch
 - HuggingFace models download on first use (requires internet)
 
 ### Development Workflow
-- Use `python run_full_stack.py` for full development (backend + frontend)
-- Use `python run_local.py` for backend-only development
+- Use `./run_dev.sh` for full development (backend + frontend) - **RECOMMENDED**
+- Use `python run_full_stack.py` for full development alternative
+- Use `cd api && python run_local.py` for backend-only development  
+- Use `cd api && venv/bin/python main.py` for manual backend startup
 - Use `cd frontend && npm run dev` for frontend-only development
 - Check `/health` endpoint for service status (backend)
 - Access frontend at `http://localhost:3000`
 - Test with small audio files first (model loading takes time)
 - Use `/docs` endpoint for interactive API testing
 - Test video extraction with `/transcribe/extract-audio` endpoint
+
+### Troubleshooting Scripts
+- If `run_dev.sh` fails with Python path errors, ensure you're using the corrected version
+- Backend logs are saved to `backend.log` in root directory
+- Frontend logs are saved to `frontend.log` in root directory  
+- Use `curl http://localhost:8000/health` and `curl http://localhost:3000/api/health` to test endpoints
 
 ## API Endpoints
 
@@ -269,6 +277,21 @@ This hardware requires PyTorch Nightly (2.9.0.dev+cu128) due to CUDA sm_120 arch
 - ✅ **Development Support**: Docker Compose with hot-reload volumes for development workflow
 - ✅ **Automated Setup**: Added `docker-start.sh` script for easy initialization with health checks
 - ✅ **Documentation**: Comprehensive README.Docker.md with troubleshooting and best practices
+
+### Directory Structure Separation (August 2024)
+- ✅ **API/Frontend Separation**: Restructured project into separate `./api/` and `./frontend/` directories
+- ✅ **Backend Migration**: Moved all Python/FastAPI files to `api/` directory (main.py, src/, requirements.txt, venv/, scripts/)
+- ✅ **Configuration Updates**: Updated docker-compose.yml, run scripts, and configuration paths for new structure
+- ✅ **Script Corrections**: Fixed `run_dev.sh` and `run_full_stack.py` to work with separated directories
+- ✅ **Path Adjustments**: Updated API config to use relative paths (`../public/`) for shared data directories
+- ✅ **Documentation Updates**: Revised all commands and paths in CLAUDE.md to reflect new structure
+
+### Script Path Resolution Fixes (August 2024)
+- ✅ **run_dev.sh Python Path Issue**: Fixed incorrect Python path resolution when executing from root but needing to run in `api/` directory
+- ✅ **Directory Navigation Bug**: Resolved frontend startup failure due to incorrect directory context after backend initialization
+- ✅ **Virtual Environment Detection**: Improved venv path detection to work correctly with new `api/venv/` location
+- ✅ **Absolute Path Usage**: Implemented `CURRENT_DIR` variable usage to prevent directory navigation issues
+- ✅ **Debug Logging**: Added Python command logging to help troubleshoot path resolution problems
 
 ## Docker Usage
 
