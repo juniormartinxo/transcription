@@ -1,0 +1,30 @@
+# Dockerfile.dev - Frontend Development with Hot Reload
+FROM node:18-alpine
+
+# Instalar dependências básicas
+RUN apk add --no-cache libc6-compat curl
+
+# Configurar diretório de trabalho
+WORKDIR /app
+
+# Copiar arquivos de configuração de dependências
+COPY package*.json ./
+
+# Instalar dependências
+RUN npm ci
+
+# Configurar usuário não-root
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+USER nextjs
+
+# Expor porta
+EXPOSE 3000
+
+# Configurar variáveis de ambiente para desenvolvimento
+ENV NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV WATCHPACK_POLLING=true
+
+# Comando padrão - Next.js development server
+CMD ["npm", "run", "dev"]
