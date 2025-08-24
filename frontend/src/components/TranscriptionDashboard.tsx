@@ -219,6 +219,37 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
     }
   };
 
+  // Identifica se uma tarefa é parte de um lote
+  const isBatchTask = (taskId: string) => {
+    return taskId.includes('batch_');
+  };
+
+  // Extrai o ID do lote
+  const getBatchId = (taskId: string) => {
+    const match = taskId.match(/^(batch_[^_]+_\d{8}_\d{6}_[a-f0-9]{8})/);
+    return match ? match[1] : null;
+  };
+
+  // Agrupa tarefas por lote
+  const groupTasksByBatch = (tasks: TranscriptionTask[]) => {
+    const batchGroups: { [batchId: string]: TranscriptionTask[] } = {};
+    const individualTasks: TranscriptionTask[] = [];
+
+    tasks.forEach(task => {
+      const batchId = getBatchId(task.task_id);
+      if (batchId) {
+        if (!batchGroups[batchId]) {
+          batchGroups[batchId] = [];
+        }
+        batchGroups[batchId].push(task);
+      } else {
+        individualTasks.push(task);
+      }
+    });
+
+    return { batchGroups, individualTasks };
+  };
+
   // Filtros e ordenação
   const filteredAndSortedTasks = tasks
     .filter(task => {
@@ -376,118 +407,127 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
               </div>
 
               {/* Lista de tarefas */}
-              {filteredAndSortedTasks.map((task) => (
-                <div key={task.task_id} className="px-6 py-4 hover:bg-gray-50">
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    <div className="md:col-span-3">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-gray-900 truncate" title={task.filename}>
-                          {task.filename}
-                        </span>
-                        <span className="text-xs text-gray-500 font-mono">
-                          {task.task_id}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <span className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(task.status)}`}>
-                        {getStatusIcon(task.status)}
-                        <span>{getStatusText(task.status)}</span>
-                      </span>
-                    </div>
-
-                    <div className="md:col-span-2 text-sm text-gray-600">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>{new Date(task.created_at).toLocaleDateString('pt-BR')}</span>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(task.created_at).toLocaleTimeString('pt-BR')}
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2 text-sm text-gray-600">
-                      {task.completed_at ? (
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{formatDuration(task.created_at, task.completed_at)}</span>
+              {filteredAndSortedTasks.map((task) => {
+                const isTaskInBatch = isBatchTask(task.task_id);
+                const batchId = getBatchId(task.task_id);
+                
+                return (
+                  <div key={task.task_id} className={`px-6 py-4 hover:bg-gray-50 ${isTaskInBatch ? 'border-l-4 border-blue-300 bg-blue-50' : ''}`}>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                      <div className="md:col-span-3">
+                        <div className="flex flex-col">
+                          {isTaskInBatch && (
+                            <span className="text-xs text-blue-600 font-mono mb-1">
+                              Lote: {batchId}
+                            </span>
+                          )}
+                          <span className="font-medium text-gray-900 truncate" title={task.filename}>
+                            {task.filename}
+                          </span>
+                          <span className="text-xs text-gray-500 font-mono">
+                            {task.task_id}
+                          </span>
                         </div>
-                      ) : task.status === 'processing' ? (
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <span className={`inline-flex items-center space-x-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(task.status)}`}>
+                          {getStatusIcon(task.status)}
+                          <span>{getStatusText(task.status)}</span>
+                        </span>
+                      </div>
+
+                      <div className="md:col-span-2 text-sm text-gray-600">
                         <div className="flex items-center space-x-1">
-                          <Clock className="w-4 h-4" />
-                          <span>{formatDuration(task.created_at)}</span>
+                          <Calendar className="w-4 h-4" />
+                          <span>{new Date(task.created_at).toLocaleDateString('pt-BR')}</span>
                         </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(task.created_at).toLocaleTimeString('pt-BR')}
+                        </div>
+                      </div>
 
-                    <div className="md:col-span-1">
-                      <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                        {(task as TranscriptionTask & { type?: string }).type || 'padrão'}
-                      </span>
-                    </div>
-
-                    <div className="md:col-span-2 flex items-center space-x-2">
-                      {task.status === 'completed' && (
-                        <button
-                          onClick={() => handleDownload(task)}
-                          className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                          title="Download da transcrição"
-                        >
-                          <Download className="w-3 h-3" />
-                          <span className="hidden sm:inline">Download</span>
-                        </button>
-                      )}
-
-                      {(task.status === 'pending' || task.status === 'processing') && (
-                        <>
-                          <button
-                            onClick={() => handleCancelTask(task)}
-                            className="flex items-center space-x-1 px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
-                            title="Cancelar transcrição"
-                          >
-                            <StopCircle className="w-3 h-3" />
-                            <span className="hidden sm:inline">Cancelar</span>
-                          </button>
-                          <div className="text-xs text-gray-500 flex items-center space-x-1">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span className="hidden sm:inline">Processando...</span>
+                      <div className="md:col-span-2 text-sm text-gray-600">
+                        {task.completed_at ? (
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatDuration(task.created_at, task.completed_at)}</span>
                           </div>
-                        </>
-                      )}
+                        ) : task.status === 'processing' ? (
+                          <div className="flex items-center space-x-1">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatDuration(task.created_at)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </div>
 
-                      {task.status === 'failed' && task.error && (
-                        <div 
-                          className="px-3 py-1 bg-red-100 text-red-800 text-xs rounded cursor-help"
-                          title={task.error}
+                      <div className="md:col-span-1">
+                        <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                          {(task as TranscriptionTask & { type?: string }).type || (isTaskInBatch ? 'lote' : 'padrão')}
+                        </span>
+                      </div>
+
+                      <div className="md:col-span-2 flex items-center space-x-2">
+                        {task.status === 'completed' && (
+                          <button
+                            onClick={() => handleDownload(task)}
+                            className="flex items-center space-x-1 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                            title="Download da transcrição"
+                          >
+                            <Download className="w-3 h-3" />
+                            <span className="hidden sm:inline">Download</span>
+                          </button>
+                        )}
+
+                        {(task.status === 'pending' || task.status === 'processing') && (
+                          <>
+                            <button
+                              onClick={() => handleCancelTask(task)}
+                              className="flex items-center space-x-1 px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
+                              title="Cancelar transcrição"
+                            >
+                              <StopCircle className="w-3 h-3" />
+                              <span className="hidden sm:inline">Cancelar</span>
+                            </button>
+                            <div className="text-xs text-gray-500 flex items-center space-x-1">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span className="hidden sm:inline">Processando...</span>
+                            </div>
+                          </>
+                        )}
+
+                        {task.status === 'failed' && task.error && (
+                          <div 
+                            className="px-3 py-1 bg-red-100 text-red-800 text-xs rounded cursor-help"
+                            title={task.error}
+                          >
+                            Ver erro
+                          </div>
+                        )}
+
+                        <button
+                          onClick={() => openDeleteModal(task)}
+                          className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                          title="Excluir tarefa"
                         >
-                          Ver erro
-                        </div>
-                      )}
-
-                      {/* Botão de excluir - sempre disponível */}
-                      <button
-                        onClick={() => openDeleteModal(task)}
-                        className="flex items-center space-x-1 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                        title="Excluir tarefa"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span className="hidden sm:inline">Excluir</span>
-                      </button>
+                          <Trash2 className="w-3 h-3" />
+                          <span className="hidden sm:inline">Excluir</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {task.status === 'failed' && task.error && (
+                      <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                        <p className="text-sm text-red-800">
+                          <strong>Erro:</strong> {task.error}
+                        </p>
+                      </div>
+                    )}
                   </div>
-
-                  {task.status === 'failed' && task.error && (
-                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
-                      <p className="text-sm text-red-800">
-                        <strong>Erro:</strong> {task.error}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
