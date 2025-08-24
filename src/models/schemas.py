@@ -58,3 +58,18 @@ class TranscriptionTask(BaseModel):
 class TranscriptionListResponse(BaseModel):
     tasks: list[TranscriptionTask]
     total: int
+
+class BatchUploadTask(BaseModel):
+    """Representa uma tarefa individual em um upload em lote"""
+    filename: str
+    file_size: int
+    task: Optional[TranscriptionTask] = None
+    error: Optional[str] = None
+    status: str = "pending"  # pending, processing, completed, failed
+
+class BatchUploadResponse(BaseModel):
+    """Resposta para upload em lote"""
+    batch_id: str
+    total_files: int
+    tasks: list[BatchUploadTask]
+    message: str
