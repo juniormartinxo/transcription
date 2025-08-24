@@ -55,7 +55,13 @@ cd frontend && npm run lint           # ESLint checking
 # Docker (isolated deployment)
 docker-compose up --build             # Build and run containerized
 docker-compose up -d                  # Run in background
-docker-compose logs -f transcriber    # View logs
+docker-compose logs -f backend        # View backend logs
+docker-compose logs -f frontend       # View frontend logs
+
+# Docker Development (with hot reload)
+./docker-dev.sh                       # Start development containers with hot reload
+docker-compose -f docker-compose.dev.yml up --build  # Manual start dev containers
+./docker-dev-stop.sh                  # Stop development containers
 ```
 
 ### GPU/CPU Execution
@@ -325,6 +331,32 @@ docker compose -f docker-compose.prod.yml up -d --build
 - **Backend API**: http://localhost:8000  
 - **API Documentation**: http://localhost:8000/docs
 - **Health Checks**: Automatic monitoring with 30s intervals
+
+### Docker Development Mode (Hot Reload)
+
+Para desenvolvimento com hot reload nos containers:
+
+```bash
+# Iniciar desenvolvimento com hot reload
+./docker-dev.sh
+
+# Ou manualmente
+docker-compose -f docker-compose.dev.yml up --build
+
+# Parar desenvolvimento
+./docker-dev-stop.sh
+```
+
+**Características do modo desenvolvimento:**
+- ✅ **Hot Reload Completo**: Backend e frontend recarregam automaticamente
+- ✅ **Volumes Mapeados**: Código fonte mapeado para o container
+- ✅ **Logs em Tempo Real**: Saída dos containers visível no terminal
+- ✅ **Ambiente Isolado**: Mesma configuração que produção mas com development features
+- ✅ **Cache Persistente**: Modelos e dependências mantidos entre reinicializações
+
+**Volumes de desenvolvimento mapeados:**
+- Backend: `api/src/`, `api/main.py` → Auto-reload
+- Frontend: `frontend/src/`, `frontend/package.json` → Auto-reload
 
 ## Important Bug Fixes
 
