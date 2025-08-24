@@ -11,6 +11,9 @@ services:
     build: 
       context: ./api
       dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
     container_name: transcription-backend
     restart: unless-stopped
     ports:
@@ -31,20 +34,22 @@ services:
       - HOME=/home/appuser
       - XDG_CACHE_HOME=/home/appuser/.cache
       - XDG_CONFIG_HOME=/home/appuser/.config
+      - CTRANSLATE2_SUPPRESS_WARNING=1
+      - OMP_NUM_THREADS=1
     volumes:
       # Volumes de dados persistentes
       - type: bind
-        source: ./public/audios
+        source: ./api/public/audios
         target: /app/public/audios
         bind:
           create_host_path: true
       - type: bind
-        source: ./public/transcriptions
+        source: ./api/public/transcriptions
         target: /app/public/transcriptions
         bind:
           create_host_path: true
       - type: bind
-        source: ./public/videos
+        source: ./api/public/videos
         target: /app/public/videos
         bind:
           create_host_path: true
