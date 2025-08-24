@@ -379,7 +379,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onUploadComplete, onTaskCre
                             style={{ width: `${fileProgress.progress.percentage}%` }}
                           ></div>
                         </div>
-                        <span className="text-xs text-gray-600">{fileProgress.progress.percentage}%</span>
+                        <span className="text-xs text-gray-600">{Math.round(fileProgress.progress.percentage)}%</span>
                       </div>
                     )}
                     {fileProgress.status === 'completed' && (
