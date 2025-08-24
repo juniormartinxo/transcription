@@ -39,6 +39,62 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
 
   // Polling para atualizar status das tarefas
   const [pollingTasks, setPollingTasks] = useState<Set<string>>(new Set());
+  
+  // Sistema de polling em lote mais eficiente
+  useEffect(() => {
+    if (pollingTasks.size === 0) return;
+
+    const interval = setInterval(async () => {
+      if (pollingTasks.size === 0) return;
+
+      try {
+        // Carrega todas as tarefas de uma vez
+        const response = await TranscriptionAPI.listTasks();
+        const currentTasks = response.tasks;
+        
+        // Atualiza apenas as tarefas que estão em polling
+        setTasks(prev => {
+          let hasChanges = false;
+          const newTasks = prev.map(prevTask => {
+            if (!pollingTasks.has(prevTask.task_id)) return prevTask;
+            
+            const updatedTask = currentTasks.find(t => t.task_id === prevTask.task_id);
+            if (updatedTask && (
+              updatedTask.status !== prevTask.status || 
+              updatedTask.completed_at !== prevTask.completed_at
+            )) {
+              hasChanges = true;
+              return updatedTask;
+            }
+            return prevTask;
+          });
+          
+          return hasChanges ? newTasks : prev;
+        });
+        
+        // Remove tarefas completadas do polling
+        setPollingTasks(prev => {
+          const newSet = new Set(prev);
+          let hasChanges = false;
+          
+          for (const taskId of prev) {
+            const task = currentTasks.find(t => t.task_id === taskId);
+            if (task && (task.status === 'completed' || task.status === 'failed')) {
+              newSet.delete(taskId);
+              hasChanges = true;
+            }
+          }
+          
+          return hasChanges ? newSet : prev;
+        });
+        
+      } catch (error) {
+        console.error('Erro no polling em lote:', error);
+      }
+    }, 5000); // Polling a cada 5 segundos para reduzir carga
+
+    return () => clearInterval(interval);
+  }, [pollingTasks]);
 
   const loadTasks = async () => {
     try {
@@ -74,33 +130,12 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
     loadTasks();
   }, []);
 
-  const startPollingTask = useCallback(async (taskId: string) => {
+  const startPollingTask = useCallback((taskId: string) => {
     if (pollingTasks.has(taskId)) return;
 
+    // Simplesmente adiciona a tarefa ao conjunto de polling
+    // O sistema de polling em lote vai gerenciar as atualizações
     setPollingTasks(prev => new Set(prev).add(taskId));
-
-    const stopPolling = await TranscriptionAPI.pollTaskStatus(
-      taskId,
-      (updatedTask) => {
-        setTasks(prev => 
-          prev.map(task => 
-            task.task_id === taskId ? updatedTask : task
-          )
-        );
-
-        // Para o polling quando a tarefa termina
-        if (updatedTask.status === 'completed' || updatedTask.status === 'failed') {
-          setPollingTasks(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(taskId);
-            return newSet;
-          });
-        }
-      }
-    );
-
-    // Cleanup function seria chamada quando o componente desmonta
-    return stopPolling;
   }, [pollingTasks]);
 
   const handleDownload = async (task: TranscriptionTask) => {
@@ -230,25 +265,6 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
     return match ? match[1] : null;
   };
 
-  // Agrupa tarefas por lote
-  const groupTasksByBatch = (tasks: TranscriptionTask[]) => {
-    const batchGroups: { [batchId: string]: TranscriptionTask[] } = {};
-    const individualTasks: TranscriptionTask[] = [];
-
-    tasks.forEach(task => {
-      const batchId = getBatchId(task.task_id);
-      if (batchId) {
-        if (!batchGroups[batchId]) {
-          batchGroups[batchId] = [];
-        }
-        batchGroups[batchId].push(task);
-      } else {
-        individualTasks.push(task);
-      }
-    });
-
-    return { batchGroups, individualTasks };
-  };
 
   // Filtros e ordenação
   const filteredAndSortedTasks = tasks
