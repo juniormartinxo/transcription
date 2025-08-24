@@ -9,7 +9,7 @@ services:
   # Backend FastAPI
   backend:
     build: 
-      context: .
+      context: ./api
       dockerfile: Dockerfile
     container_name: transcription-backend
     restart: unless-stopped
@@ -70,8 +70,8 @@ services:
         volume:
           nocopy: true
       # Volumes de desenvolvimento (comentar em produção)
-      - ./src:/app/src
-      - ./main.py:/app/main.py
+      - ./api/src:/app/src
+      - ./api/main.py:/app/main.py
     deploy:
       resources:
         limits:
