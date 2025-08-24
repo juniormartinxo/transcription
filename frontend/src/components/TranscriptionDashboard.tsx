@@ -14,7 +14,8 @@ import {
   Filter,
   StopCircle,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Database
 } from 'lucide-react';
 import { TranscriptionAPI, formatDuration } from '@/lib/api';
 import { TranscriptionTask, TranscriptionStatus } from '@/lib/types';
@@ -36,6 +37,10 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<TranscriptionTask | null>(null);
   const [deleteWithFiles, setDeleteWithFiles] = useState(true);
+
+  // Estados para modal de confirmação da exclusão do banco de dados
+  const [showDeleteDbModal, setShowDeleteDbModal] = useState(false);
+  const [deletingDatabase, setDeletingDatabase] = useState(false);
 
   // Polling para atualizar status das tarefas
   const [pollingTasks, setPollingTasks] = useState<Set<string>>(new Set());
@@ -218,6 +223,40 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
     setDeleteWithFiles(true);
   };
 
+  const handleDeleteDatabase = async () => {
+    setDeletingDatabase(true);
+
+    try {
+      const result = await TranscriptionAPI.deleteTasksDatabase();
+      
+      // Limpa todas as tarefas da interface
+      setTasks([]);
+      
+      // Limpa o polling
+      setPollingTasks(new Set());
+      
+      // Fecha o modal
+      setShowDeleteDbModal(false);
+      
+      // Recarrega as tarefas (se houver alguma)
+      await loadTasks();
+
+    } catch (error) {
+      console.error('Erro ao excluir banco de dados:', error);
+      setError('Erro ao excluir banco de dados de tarefas');
+    } finally {
+      setDeletingDatabase(false);
+    }
+  };
+
+  const openDeleteDbModal = () => {
+    setShowDeleteDbModal(true);
+  };
+
+  const closeDeleteDbModal = () => {
+    setShowDeleteDbModal(false);
+  };
+
   const getStatusIcon = (status: TranscriptionStatus) => {
     switch (status) {
       case 'pending':
@@ -325,13 +364,23 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-900">Dashboard de Transcrições</h2>
-            <button
-              onClick={loadTasks}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <RefreshCw className="w-4 h-4" />
-              <span>Atualizar</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={openDeleteDbModal}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                title="Excluir banco de dados de tarefas (limpar histórico)"
+              >
+                <Database className="w-4 h-4" />
+                <span>Limpar BD</span>
+              </button>
+              <button
+                onClick={loadTasks}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>Atualizar</span>
+              </button>
+            </div>
           </div>
 
           {/* Filtros e busca */}
@@ -620,6 +669,54 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
               >
                 Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação da Exclusão do Banco de Dados */}
+      {showDeleteDbModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-mx mx-4">
+            <div className="flex items-center space-x-3 mb-4">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Confirmar Exclusão do Banco de Dados</h3>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-gray-600 mb-2">
+                <strong>ATENÇÃO:</strong> Esta ação irá excluir permanentemente o arquivo <code>tasks.json</code> que contém o histórico de todas as tarefas de transcrição.
+              </p>
+              <p className="text-sm text-red-600">
+                Esta operação não pode ser desfeita. Todas as informações sobre transcrições anteriores serão perdidas.
+              </p>
+            </div>
+
+            <div className="flex space-x-3 justify-end">
+              <button
+                onClick={closeDeleteDbModal}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                disabled={deletingDatabase}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDeleteDatabase}
+                className="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                disabled={deletingDatabase}
+              >
+                {deletingDatabase ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Excluindo...</span>
+                  </>
+                ) : (
+                  <>
+                    <Database className="w-4 h-4" />
+                    <span>Excluir Banco</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
