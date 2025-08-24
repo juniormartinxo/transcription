@@ -4,20 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a FastAPI-based audio transcription service using WhisperX for speech-to-text and PyAnnote.Audio for speaker diarization. The service runs background transcription tasks and supports both CPU and GPU execution with special RTX 5070 Ti compatibility.
+This is a full-stack audio transcription application with a FastAPI backend and Next.js frontend. The backend uses WhisperX for speech-to-text and PyAnnote.Audio for speaker diarization, running background transcription tasks with support for both CPU and GPU execution including special RTX 5070 Ti compatibility. The frontend provides a modern React interface for uploading files and managing transcriptions.
 
 ## Common Commands
 
-### Development Setup
+### Full Stack Development
 ```bash
-# Local development (recommended for debugging)
-python run_local.py                    # Auto-setup and run locally
-./scripts/setup_local.sh              # Manual setup only
+# Run both backend and frontend simultaneously (recommended)
+python run_full_stack.py              # Starts API + Next.js frontend
 
-# Virtual environment (recommended for production)
+# Backend only (FastAPI)
+python run_local.py                    # Auto-setup and run locally
 python run_venv.py                     # Auto-setup with venv and run
+./scripts/setup_local.sh              # Manual setup only
 ./scripts/setup_venv.sh               # Manual venv setup only
 source venv/bin/activate               # Activate existing venv
+
+# Frontend only (Next.js)
+cd frontend && npm run dev             # Development server (with Turbopack)
+cd frontend && npm run build          # Production build (with Turbopack)  
+cd frontend && npm start              # Start production server
+cd frontend && npm run lint           # ESLint checking
 
 # Docker (isolated deployment)
 docker-compose up --build             # Build and run containerized
@@ -72,10 +79,26 @@ docker-compose logs transcriber       # Container logs
 
 ## Architecture
 
-### Core Service Layer
+### Full Stack Architecture
+This is a full-stack application with separate backend and frontend components:
+- **Backend**: FastAPI service (`main.py`) running on port 8000
+- **Frontend**: Next.js React application (`frontend/`) running on port 3000
+- **Communication**: REST API endpoints with CORS enabled for cross-origin requests
+- **Development**: Can run independently or together using `run_full_stack.py`
+
+### Backend Service Layer
 - **TranscriptionService** (`src/services/transcription.py`): Orchestrates transcription tasks, manages persistence in JSON file, handles background processing
 - **AudioTranscriber** (`src/services/audio_transcriber.py`): Wraps WhisperX and PyAnnote models, handles device selection (CPU/GPU), manages model loading and caching
 - **VideoAudioExtractor** (`src/services/video_extractor.py`): Extracts audio from video files using FFmpeg, supports multiple video formats
+- **VideoFrameExtractor** (`src/services/video_frame_extractor.py`): Extracts frames from video files for visual analysis
+
+### Frontend Architecture
+- **Framework**: Next.js 15.5.0 with React 19.1.0 and TypeScript
+- **Styling**: TailwindCSS 4.x with PostCSS for utility-first styling
+- **Components**: Modular React components in `frontend/src/components/`
+- **API Integration**: Axios for HTTP requests to backend API (`frontend/src/lib/api.ts`)
+- **Build System**: Turbopack for fast development and production builds
+- **Linting**: ESLint with Next.js and TypeScript configurations
 
 ### Configuration Architecture
 - **AppConfig** (`src/config/config.py`): Pydantic-based configuration with environment variable loading, includes ModelSize enum and path helpers
@@ -91,8 +114,9 @@ docker-compose logs transcriber       # Container logs
 - **Route Organization**: Separate routers for `/transcribe` and `/health` endpoints
 - **Dependency Injection**: FastAPI Depends() pattern for service instantiation
 - **Error Handling**: Consistent HTTPException usage with detailed logging
-- **File Validation**: Content-type and extension checking with size limits
+- **File Validation**: Content-type and extension checking with size limits (100MB audio, 500MB video)
 - **Video Support**: `/transcribe/extract-audio` endpoint automatically creates 4 transcriptions with different configurations
+- **Frame Extraction**: `/transcribe/extract-frames` endpoint for extracting video frames
 
 ### Logging Architecture
 - **Global Logger Setup**: Centralized configuration in `src/core/logger_config.py`
@@ -167,17 +191,29 @@ This hardware requires PyTorch Nightly (2.9.0.dev+cu128) due to CUDA sm_120 arch
 - HuggingFace models download on first use (requires internet)
 
 ### Development Workflow
-- Use `python run_local.py` for fastest iteration
-- Check `/health` endpoint for service status
+- Use `python run_full_stack.py` for full development (backend + frontend)
+- Use `python run_local.py` for backend-only development
+- Use `cd frontend && npm run dev` for frontend-only development
+- Check `/health` endpoint for service status (backend)
+- Access frontend at `http://localhost:3000`
 - Test with small audio files first (model loading takes time)
 - Use `/docs` endpoint for interactive API testing
 - Test video extraction with `/transcribe/extract-audio` endpoint
 
 ## API Endpoints
 
-### Transcription Endpoints
+### Backend API Endpoints (Port 8000)
 - `POST /transcribe/`: Upload audio file for transcription
 - `GET /transcribe/{task_id}`: Check transcription status
 - `GET /transcribe/{task_id}/download`: Download completed transcription
 - `GET /transcribe/`: List all transcription tasks
-- `POST /transcribe/extract-audio`: Extract audio from video and auto-transcribe
+- `POST /transcribe/extract-audio`: Extract audio from video and auto-transcribe (4 versions)
+- `POST /transcribe/extract-frames`: Extract frames from video files
+- `POST /transcribe/{task_id}/cancel`: Cancel a running transcription
+- `DELETE /transcribe/{task_id}`: Delete transcription task and files
+- `GET /transcribe/{task_id}/files`: Get task file information
+- `GET /health`: Service health check
+
+### Frontend URLs (Port 3000)
+- `http://localhost:3000/`: Main dashboard with file upload and task management
+- Interactive UI for uploading audio/video files and monitoring transcriptions
