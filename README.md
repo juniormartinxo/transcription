@@ -1,22 +1,56 @@
-# 🎵 API de Transcrição de Áudio
+# 🎵 Aplicação de Transcrição Full-Stack
 
-API FastAPI para transcrição de áudio usando WhisperX e diarização com PyAnnote.Audio. Suporta execução em CPU e GPU com compatibilidade especial para RTX 5070 Ti.
+Aplicação completa para transcrição de áudio e vídeo com FastAPI + Next.js. Backend usa WhisperX para transcrição e PyAnnote.Audio para diarização, com suporte completo para GPU e CPU, incluindo compatibilidade especial para RTX 5070 Ti. Frontend moderno em React para gerenciamento de arquivos e transcrições.
+
+## 🏗️ Arquitetura
+
+```
+.
+├── api/                    # Backend FastAPI
+│   ├── main.py            # Entrada da API
+│   ├── src/               # Código fonte do backend
+│   ├── requirements.txt   # Dependências Python
+│   ├── venv/              # Ambiente virtual
+│   └── scripts/           # Scripts de setup
+├── frontend/              # Frontend Next.js
+│   ├── src/               # Componentes React
+│   ├── package.json       # Dependências Node.js
+│   └── public/            # Assets estáticos
+├── public/                # Dados compartilhados
+│   ├── audios/            # Arquivos de áudio
+│   ├── transcriptions/    # Transcrições geradas
+│   └── videos/            # Arquivos de vídeo
+├── logs/                  # Logs da aplicação
+└── docker-compose.yml     # Orquestração de containers
+```
 
 ## 🚀 Execução Rápida
 
-### Opção 1: Execução Local (Recomendada para desenvolvimento)
+### Opção 1: Full Stack (Recomendada)
 ```bash
-python run_local.py
+# Executa backend + frontend simultaneamente
+./run_dev.sh
 ```
 
-### Opção 2: Ambiente Virtual (Recomendada para produção)
+### Opção 2: Python Script
 ```bash
-python run_venv.py
+# Alternativa em Python
+python run_full_stack.py
 ```
 
 ### Opção 3: Docker (Isolamento completo)
 ```bash
+# Execução containerizada
 docker-compose up --build
+```
+
+### Opção 4: Execução Separada
+```bash
+# Backend apenas
+cd api && python run_venv.py
+
+# Frontend apenas (em outro terminal)
+cd frontend && npm run dev
 ```
 
 ## 📋 Pré-requisitos
@@ -26,7 +60,13 @@ docker-compose up --build
 python3 --version
 ```
 
-### 2. FFmpeg
+### 2. Node.js 18+
+```bash
+node --version
+npm --version
+```
+
+### 3. FFmpeg
 ```bash
 # Ubuntu/Debian
 sudo apt update && sudo apt install ffmpeg
@@ -38,7 +78,7 @@ brew install ffmpeg
 # Baixe de: https://ffmpeg.org/download.html
 ```
 
-### 3. Token do HuggingFace
+### 4. Token do HuggingFace
 1. Acesse: https://huggingface.co/settings/tokens
 2. Crie um novo token
 3. Aceite os termos dos modelos:
@@ -47,145 +87,116 @@ brew install ffmpeg
 
 ## ⚙️ Configuração
 
-### Arquivo .env
+### Arquivo .env (raiz do projeto)
 ```env
 # Token obrigatório do HuggingFace
 HUGGING_FACE_HUB_TOKEN=seu_token_aqui
 
-# Configurações opcionais
+# Configurações opcionais do backend
 VERSION_MODEL=turbo
 FORCE_CPU=false
 AUDIOS_DIR=./public/audios
 TRANSCRIPTIONS_DIR=./public/transcriptions
 LOG_LEVEL=INFO
 LOG_FILE=./logs/app.log
+
+# Configurações do frontend
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
-## 🖥️ Modos de Execução
+## 🌐 URLs da Aplicação
 
-### GPU com RTX 5070 Ti
-Para placas RTX 5070 Ti, use PyTorch Nightly devido à arquitetura CUDA sm_120:
+Após iniciar a aplicação:
 
+### Frontend (Interface Principal)
+- **Dashboard**: http://localhost:3000
+- **Upload de Arquivos**: Interface gráfica completa
+- **Gerenciamento de Transcrições**: Visualização em tempo real
+- **Health Check**: http://localhost:3000/api/health
+
+### Backend (API)
+- **Health Check**: http://localhost:8000/health
+- **Documentação Interativa**: http://localhost:8000/docs
+- **API Endpoints**: http://localhost:8000/transcribe/
+
+## 🔧 Funcionalidades
+
+### Backend (FastAPI)
+- ✅ **Transcrição de Áudio**: WhisperX com modelos turbo/large
+- ✅ **Diarização**: Identificação de speakers com PyAnnote
+- ✅ **Processamento de Vídeo**: Extração automática de áudio
+- ✅ **Upload em Lote**: Múltiplos arquivos simultaneamente
+- ✅ **4 Tipos de Saída**: Limpa, Timestamps, Diarização, Completa
+- ✅ **GPU/CPU**: Suporte completo incluindo RTX 5070 Ti
+- ✅ **Background Tasks**: Processamento não-bloqueante
+
+### Frontend (Next.js)
+- ✅ **Interface Moderna**: React 19 + TypeScript + TailwindCSS
+- ✅ **Upload Drag & Drop**: Suporte para áudio e vídeo
+- ✅ **Progresso em Tempo Real**: Acompanhamento de transcrições
+- ✅ **Dashboard Completo**: Listagem e gerenciamento de tarefas
+- ✅ **Download Direto**: Baixar transcrições prontas
+- ✅ **Responsive**: Otimizado para desktop e mobile
+
+## 🖥️ Modos de Execução GPU
+
+### RTX 5070 Ti (Configuração Especial)
 ```bash
-# Setup automático para RTX 5070 Ti
-./scripts/setup_rtx5070ti.sh
+# Setup específico para RTX 5070 Ti
+cd api && ./scripts/setup_rtx5070ti.sh
 
-# Executar com GPU
-./scripts/run_with_gpu.sh
+# Execução otimizada
+cd api && ./scripts/run_with_gpu.sh
+```
+
+### GPU Padrão
+```bash
+# Execução com GPU
+cd api && ./scripts/run_with_gpu.sh
 ```
 
 ### CPU (Fallback)
 ```bash
-./scripts/run_with_cpu.sh
+# Forçar execução em CPU
+cd api && ./scripts/run_with_cpu.sh
 ```
 
-## 🌐 Endpoints da API
+## 📡 Endpoints da API
 
-### Teste de Saúde
-```bash
-curl http://localhost:8000/health
-```
+### Transcrição
+- `POST /transcribe/` - Upload de áudio individual
+- `POST /transcribe/batch-audio` - Upload de áudios em lote
+- `POST /transcribe/extract-audio` - Upload de vídeo (extrai áudio automaticamente)
+- `POST /transcribe/batch-video` - Upload de vídeos em lote
 
-### Documentação Interativa
-```bash
-# Abra no navegador
-http://localhost:8000/docs
-```
+### Gerenciamento
+- `GET /transcribe/` - Listar todas as tarefas
+- `GET /transcribe/{task_id}` - Status de tarefa específica
+- `GET /transcribe/{task_id}/download` - Download da transcrição
+- `DELETE /transcribe/{task_id}` - Deletar tarefa
 
-### Upload de Áudio
-```bash
-curl -X POST "http://localhost:8000/transcribe/" \
-  -F "file=@/caminho/para/seu/audio.wav"
-```
-
-### Status da Transcrição
-```bash
-curl http://localhost:8000/transcribe/{task_id}
-```
-
-## 📁 Estrutura do Projeto
-
-```
-transcription/
-├── public/
-│   ├── audios/          # Áudios enviados
-│   └── transcriptions/  # Transcrições geradas
-├── logs/                # Logs da aplicação
-├── scripts/             # Scripts de setup e execução
-├── src/                 # Código fonte
-│   ├── api/            # Rotas da API
-│   ├── config/         # Configurações
-│   ├── core/           # Logger e utilitários
-│   ├── models/         # Schemas Pydantic
-│   └── services/       # Serviços de transcrição
-├── venv/               # Ambiente virtual (criado automaticamente)
-├── main.py             # Ponto de entrada
-├── run_local.py        # Script de execução local
-├── run_venv.py         # Script de execução com venv
-└── requirements.txt    # Dependências
-```
+### Sistema
+- `GET /health` - Status da API
 
 ## 🛠️ Scripts Disponíveis
 
-### Scripts de Setup
+### Scripts de Desenvolvimento
+- `./run_dev.sh` - **RECOMENDADO**: Inicia backend + frontend
+- `python run_full_stack.py` - Alternativa Python para full stack
 
-#### `scripts/setup_local.sh`
-- ✅ Verifica Python 3 e FFmpeg
-- ✅ Cria diretórios necessários
-- ✅ Instala dependências globalmente
-- ✅ Cria arquivo .env com configurações padrão
-- 💡 **Uso**: Setup rápido para desenvolvimento local
+### Scripts Backend (dentro de `api/`)
+- `python run_local.py` - Setup e execução local
+- `python run_venv.py` - Setup com ambiente virtual
+- `./scripts/setup_rtx5070ti.sh` - Configuração RTX 5070 Ti
+- `./scripts/run_with_gpu.sh` - Execução com GPU
+- `./scripts/run_with_cpu.sh` - Execução em CPU
+- `./scripts/fix_permissions.sh` - Corrigir permissões
 
-#### `scripts/setup_venv.sh`
-- ✅ Verifica Python 3 e FFmpeg
-- ✅ Cria ambiente virtual automaticamente
-- ✅ Instala dependências no ambiente isolado
-- ✅ Cria diretórios e arquivo .env
-- 💡 **Uso**: Setup com isolamento de dependências
-
-#### `scripts/setup_rtx5070ti.sh`
-- ✅ Remove PyTorch estável
-- ✅ Instala PyTorch Nightly com CUDA 12.8
-- ✅ Testa compatibilidade com RTX 5070 Ti
-- ✅ Executa teste de GPU
-- 💡 **Uso**: Configuração específica para RTX 5070 Ti
-
-### Scripts de Execução
-
-#### `scripts/run_with_gpu.sh`
-- ✅ Ativa ambiente virtual
-- ✅ Configura LD_LIBRARY_PATH para CUDNN
-- ✅ Verifica status da GPU
-- ✅ Executa API com aceleração GPU
-- 💡 **Uso**: Execução otimizada para GPU (especialmente RTX 5070 Ti)
-
-#### `scripts/run_with_cpu.sh`
-- ✅ Ativa ambiente virtual
-- ✅ Força execução em CPU
-- ✅ Verifica status do PyTorch
-- ✅ Executa API sem GPU
-- 💡 **Uso**: Execução compatível com qualquer sistema
-
-### Scripts Utilitários
-
-#### `scripts/activate_venv.sh`
-- ✅ Ativa ambiente virtual
-- ✅ Mostra informações do Python/pip
-- ✅ Lista comandos disponíveis
-- 💡 **Uso**: Ativação manual do ambiente virtual
-
-#### `scripts/fix_permissions.sh`
-- ✅ Corrige permissões dos diretórios public/ e logs/
-- ✅ Cria diretórios se não existirem
-- ✅ Limpa cache do HuggingFace
-- ✅ Corrige permissões do tasks.json
-- 💡 **Uso**: Resolver problemas de permissão
-
-#### `scripts/install_cuda.sh`
-- ✅ Verifica instalação do CUDA
-- ✅ Instala CUDA Toolkit se necessário
-- ✅ Verifica drivers NVIDIA
-- 💡 **Uso**: Instalação do CUDA para sistemas Ubuntu
+### Scripts Frontend (dentro de `frontend/`)
+- `npm run dev` - Servidor de desenvolvimento (Turbopack)
+- `npm run build` - Build de produção
+- `npm run start` - Servidor de produção
+- `npm run lint` - Verificação ESLint
 
 ## 🎯 Fluxos de Trabalho
 
@@ -195,105 +206,173 @@ transcription/
 git clone <url-do-repositorio>
 cd transcription
 
-# 2. Execute setup automático
-python run_local.py
+# 2. Configure o token HuggingFace no .env
+echo "HUGGING_FACE_HUB_TOKEN=seu_token_aqui" > .env
 
-# 3. Configure o token no arquivo .env
-# 4. A API estará disponível em http://localhost:8000
+# 3. Execute o setup completo
+./run_dev.sh
+
+# 4. Acesse a aplicação
+# Frontend: http://localhost:3000
+# API: http://localhost:8000/docs
 ```
 
 ### Para Produção
 ```bash
-# 1. Use ambiente virtual
-python run_venv.py
+# 1. Use Docker para produção
+cp .env.example .env
+# Edite .env com suas configurações
 
-# 2. Configure FORCE_CPU=false no .env (se tiver GPU)
-# 3. Monitore logs/app.log
+# 2. Execute com Docker Compose
+docker compose -f docker-compose.prod.yml up -d --build
+
+# 3. Monitore os serviços
+docker compose logs -f
 ```
 
-### Para RTX 5070 Ti
+### Upload de Arquivos
+
+#### Via Interface Web (Recomendado)
+1. Acesse http://localhost:3000
+2. Arraste arquivos ou use o botão de upload
+3. Acompanhe o progresso em tempo real
+4. Baixe as transcrições quando prontas
+
+#### Via API (cURL)
 ```bash
-# 1. Setup com ambiente virtual
-python run_venv.py
+# Upload de áudio individual
+curl -X POST "http://localhost:8000/transcribe/" \
+  -F "file=@audio.wav"
 
-# 2. Configure PyTorch Nightly
-source venv/bin/activate
-./scripts/setup_rtx5070ti.sh
+# Upload de vídeo (extrai áudio automaticamente)
+curl -X POST "http://localhost:8000/transcribe/extract-audio" \
+  -F "file=@video.mp4"
 
-# 3. Execute com GPU
-./scripts/run_with_gpu.sh
+# Verificar status
+curl "http://localhost:8000/transcribe/{task_id}"
 ```
 
-## 🔧 Problemas Conhecidos e Soluções
+## 🐳 Docker
 
-### RTX 5070 Ti - "no kernel image is available"
-**Problema**: PyTorch estável não suporta arquitetura CUDA sm_120
-**Solução**: Use PyTorch Nightly (automatizado nos scripts)
-
-### "FFmpeg não encontrado"
+### Desenvolvimento
 ```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
+# Execução com hot-reload
+docker compose up --build
 
-# macOS
-brew install ffmpeg
+# Ver logs específicos
+docker compose logs frontend
+docker compose logs backend
+```
+
+### Produção
+```bash
+# Build otimizado
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Monitoramento
+docker compose -f docker-compose.prod.yml logs -f
+```
+
+### Comandos Úteis
+```bash
+# Parar containers
+docker compose down
+
+# Limpar volumes (cuidado!)
+docker compose down -v
+
+# Shell no container backend
+docker compose exec backend bash
+
+# Shell no container frontend
+docker compose exec frontend sh
+```
+
+## 🔧 Troubleshooting
+
+### Script `run_dev.sh` falha
+```bash
+# Verificar se tem Python correto no ambiente virtual
+cd api && ls -la venv/bin/python
+
+# Executar manualmente para debug
+cd api && venv/bin/python main.py
+```
+
+### Frontend não conecta com backend
+```bash
+# Verificar se backend está rodando
+curl http://localhost:8000/health
+
+# Verificar configuração CORS no frontend
+grep NEXT_PUBLIC_API_URL frontend/.env*
 ```
 
 ### "Token do HuggingFace não encontrado"
 ```bash
-# Verifique se o arquivo .env existe e tem o token
-cat .env
+# Verificar arquivo .env na raiz
+cat .env | grep HUGGING_FACE_HUB_TOKEN
 
-# Configure manualmente se necessário
-echo "HUGGING_FACE_HUB_TOKEN=seu_token_aqui" >> .env
+# Verificar se API está lendo a variável
+curl http://localhost:8000/health
 ```
 
-### "Módulo não encontrado"
+### Problemas de GPU RTX 5070 Ti
 ```bash
-# Ambiente local
-pip install -r requirements.txt --force-reinstall
+# Verificar se PyTorch Nightly está instalado
+cd api && venv/bin/python -c "import torch; print(torch.__version__)"
 
-# Ambiente virtual
-source venv/bin/activate
-pip install -r requirements.txt --force-reinstall
+# Executar setup específico
+cd api && ./scripts/setup_rtx5070ti.sh
 ```
 
-### Problemas de Permissão
+### Erros de Permissão
 ```bash
-# Execute o script de correção
-./scripts/fix_permissions.sh
+# Corrigir permissões dos diretórios
+cd api && ./scripts/fix_permissions.sh
+
+# Verificar ownership dos arquivos
+ls -la public/
 ```
 
-## 📊 Performance Esperada
+## 📊 Performance
 
 ### Com GPU (RTX 5070 Ti)
 - **Transcrição**: ~30-60s para áudio de 3 minutos
 - **Diarização**: Significativamente acelerada
 - **Memória**: ~8-12GB VRAM
+- **Paralelismo**: Múltiplas transcrições simultâneas
 
 ### Com CPU
 - **Transcrição**: ~2-3 minutos para áudio de 3 minutos
 - **Diarização**: Mais lenta mas funcional
 - **Memória**: ~4-8GB RAM
+- **Paralelismo**: Limitado pela CPU
 
 ## 📈 Monitoramento
 
 ### Logs da Aplicação
 ```bash
-# Ver logs em tempo real
+# Logs do backend
 tail -f logs/app.log
 
-# Ou usar a localização alternativa
-tail -f public/logs/app.log
+# Logs do Docker
+docker compose logs -f backend
+docker compose logs -f frontend
+
+# Logs durante desenvolvimento
+tail -f backend.log    # Script run_dev.sh
+tail -f frontend.log   # Script run_dev.sh
 ```
 
-### Status da API
+### Health Checks
 ```bash
-# Verificar se está funcionando
-curl http://localhost:8000/health
+# Status completo da aplicação
+curl http://localhost:3000/api/health  # Frontend
+curl http://localhost:8000/health      # Backend
 
-# Ver documentação
-curl http://localhost:8000/docs
+# Status detalhado via frontend
+# Acesse: http://localhost:3000 (mostra status em tempo real)
 ```
 
 ### Verificar GPU
@@ -301,60 +380,82 @@ curl http://localhost:8000/docs
 # Status da GPU
 nvidia-smi
 
-# Testar PyTorch com CUDA
-python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
+# Testar PyTorch + CUDA
+cd api && venv/bin/python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 ```
 
 ## 🔄 Comparação de Métodos
 
-| Aspecto | Docker | Ambiente Virtual | Local |
-|---------|--------|------------------|-------|
-| **Isolamento** | ✅ Completo | ✅ Dependências | ❌ Sistema |
-| **Setup** | ✅ Automático | ✅ Semi-automático | ⚠️ Manual |
-| **Performance** | ⚠️ Overhead | ✅ Otimizada | ✅ Máxima |
-| **Debug** | ❌ Complexo | ✅ Fácil | ✅ Direto |
-| **Portabilidade** | ✅ Alta | ✅ Média | ⚠️ Baixa |
-| **GPU Support** | ✅ Configurado | ✅ Flexível | ✅ Direto |
+| Método | Facilidade | Performance | Isolamento | Debug | Recomendado Para |
+|--------|------------|-------------|------------|-------|------------------|
+| `./run_dev.sh` | ✅ Muito fácil | ✅ Ótima | ⚠️ Médio | ✅ Fácil | **Desenvolvimento** |
+| `python run_full_stack.py` | ✅ Fácil | ✅ Ótima | ⚠️ Médio | ✅ Fácil | Desenvolvimento |
+| Docker Compose | ✅ Fácil | ⚠️ Boa | ✅ Completo | ⚠️ Médio | **Produção** |
+| Execução Separada | ❌ Trabalhoso | ✅ Máxima | ❌ Baixo | ✅ Máximo | Debug avançado |
 
-## 🚨 Notas Importantes
+## 📱 Formatos Suportados
 
-1. **Primeira execução**: Pode demorar para baixar os modelos do HuggingFace
-2. **Memória**: WhisperX precisa de pelo menos 2GB RAM (4GB recomendado)
-3. **Internet**: Necessária apenas na primeira execução para baixar modelos
-4. **RTX 5070 Ti**: Requer PyTorch Nightly devido à arquitetura CUDA sm_120
-5. **HuggingFace Token**: Obrigatório para modelos de diarização PyAnnote
+### Áudio
+- WAV, MP3, FLAC, OGG, M4A, AAC
 
-## 📞 Suporte
+### Vídeo  
+- MP4, AVI, MOV, MKV, WEBM, FLV
+- **Nota**: Extrai áudio automaticamente em 16kHz mono
 
-Se encontrar problemas:
+### Transcrições Geradas
+- **Limpa**: Apenas texto, sem timestamps ou speakers
+- **Timestamps**: Texto com marcações de tempo
+- **Diarização**: Texto com identificação de speakers
+- **Completa**: Timestamps + diarização + formatação
 
-1. **Verifique os logs** em `logs/app.log`
-2. **Confirme dependências**: FFmpeg, Python 3.8+, token HuggingFace
-3. **Use scripts de correção**: `./scripts/fix_permissions.sh`
-4. **Teste com arquivos pequenos** primeiro
-5. **Para RTX 5070 Ti**: Use os scripts específicos de GPU
-
-## 🎉 Exemplo Completo de Uso
+## 🎉 Exemplo Completo
 
 ```bash
 # 1. Setup inicial
-python run_venv.py
+git clone <repo>
+cd transcription
 
-# 2. Configure o token (edite o arquivo .env)
-# HUGGING_FACE_HUB_TOKEN=seu_token_aqui
+# 2. Configurar token
+echo "HUGGING_FACE_HUB_TOKEN=hf_seu_token_aqui" > .env
 
-# 3. Teste a API
-curl http://localhost:8000/health
+# 3. Executar aplicação
+./run_dev.sh
 
-# 4. Faça upload de um áudio
+# 4. Usar a interface web
+# Abrir: http://localhost:3000
+# - Upload arquivos via drag & drop
+# - Acompanhar progresso em tempo real  
+# - Baixar transcrições quando prontas
+
+# 5. Ou usar API diretamente
 curl -X POST "http://localhost:8000/transcribe/" \
   -F "file=@exemplo.wav"
 
-# 5. Verifique o status da transcrição
-curl http://localhost:8000/transcribe/{task_id_retornado}
-
-# 6. Acesse a documentação interativa
-# http://localhost:8000/docs
+# 6. Verificar resultado
+curl "http://localhost:8000/transcribe/{task_id}"
 ```
 
-A API está pronta para transcrever seus arquivos de áudio com alta qualidade! 🚀
+## 🚨 Notas Importantes
+
+1. **Primeira execução**: Modelos são baixados automaticamente (~2-4GB)
+2. **GPU Memory**: RTX 5070 Ti requer pelo menos 8GB VRAM livres
+3. **Internet**: Necessária apenas na primeira execução
+4. **HuggingFace**: Token obrigatório para diarização
+5. **Arquivos grandes**: Vídeos até 500MB, áudios até 100MB
+6. **Background**: Transcrições rodam em background, não bloqueiam a API
+
+## 📞 Suporte
+
+### Para Problemas
+1. **Verifique logs**: `tail -f logs/app.log`
+2. **Teste health checks**: URLs mostradas acima
+3. **Verifique dependências**: FFmpeg, Python, Node.js, token HF
+4. **Use scripts de correção**: `cd api && ./scripts/fix_permissions.sh`
+5. **Teste com arquivos pequenos** primeiro
+
+### Para RTX 5070 Ti
+- Use **obrigatoriamente** PyTorch Nightly
+- Execute scripts específicos de GPU
+- Monitore VRAM com `nvidia-smi`
+
+A aplicação está pronta para transcrever seus arquivos com interface web moderna e API robusta! 🚀
