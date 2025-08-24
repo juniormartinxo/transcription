@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Instalar dependências baseado no gerenciador de pacotes preferido
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Rebuild a partir do código fonte apenas quando necessário
 FROM base AS builder
@@ -18,13 +18,16 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Instalar dependências de desenvolvimento para o build
+RUN npm install
+
 # Next.js coleta dados de telemetria completamente anônimos sobre uso geral.
 # Saiba mais aqui: https://nextjs.org/telemetry
 # Remova a linha seguinte caso queira habilitar telemetria durante build.
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Configurar API URL para produção
-ENV NEXT_PUBLIC_API_URL=http://backend:8000
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build
 
