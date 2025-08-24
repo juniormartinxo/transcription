@@ -189,6 +189,11 @@ public/transcriptions/*
 !public/.gitkeep
 !public/audios/.gitkeep
 !public/transcriptions/.gitkeep
+api/public/audios/*
+api/public/transcriptions/*
+!api/public/.gitkeep
+!api/public/audios/.gitkeep
+!api/public/transcriptions/.gitkeep
 
 logs/*
 !logs/.gitkeep
