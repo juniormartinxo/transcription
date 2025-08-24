@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  Loader2, 
-  Download, 
-  Calendar, 
-  FileText, 
+import {
+  Clock,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Download,
+  Calendar,
+  FileText,
   RefreshCw,
   Search,
   Filter,
@@ -31,7 +31,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
   const [statusFilter, setStatusFilter] = useState<TranscriptionStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'created_at' | 'status' | 'filename'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  
+
   // Estados para modal de confirmação
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<TranscriptionTask | null>(null);
@@ -39,7 +39,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
 
   // Polling para atualizar status das tarefas
   const [pollingTasks, setPollingTasks] = useState<Set<string>>(new Set());
-  
+
   // Sistema de polling em lote mais eficiente
   useEffect(() => {
     if (pollingTasks.size === 0) return;
@@ -51,16 +51,16 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
         // Carrega todas as tarefas de uma vez
         const response = await TranscriptionAPI.listTasks();
         const currentTasks = response.tasks;
-        
+
         // Atualiza apenas as tarefas que estão em polling
         setTasks(prev => {
           let hasChanges = false;
           const newTasks = prev.map(prevTask => {
             if (!pollingTasks.has(prevTask.task_id)) return prevTask;
-            
+
             const updatedTask = currentTasks.find(t => t.task_id === prevTask.task_id);
             if (updatedTask && (
-              updatedTask.status !== prevTask.status || 
+              updatedTask.status !== prevTask.status ||
               updatedTask.completed_at !== prevTask.completed_at
             )) {
               hasChanges = true;
@@ -68,15 +68,15 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
             }
             return prevTask;
           });
-          
+
           return hasChanges ? newTasks : prev;
         });
-        
+
         // Remove tarefas completadas do polling
         setPollingTasks(prev => {
           const newSet = new Set(prev);
           let hasChanges = false;
-          
+
           for (const taskId of prev) {
             const task = currentTasks.find(t => t.task_id === taskId);
             if (task && (task.status === 'completed' || task.status === 'failed')) {
@@ -84,10 +84,10 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
               hasChanges = true;
             }
           }
-          
+
           return hasChanges ? newSet : prev;
         });
-        
+
       } catch (error) {
         console.error('Erro no polling em lote:', error);
       }
@@ -103,7 +103,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
       setTasks(response.tasks);
     } catch (err: unknown) {
       console.error('Erro ao carregar tarefas:', err);
-      const errorMessage = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Erro ao carregar tarefas';
+      const errorMessage = (err as { response?: { data?: { detail?: string; }; }; })?.response?.data?.detail || 'Erro ao carregar tarefas';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -118,7 +118,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
         if (exists) return prev;
         return [newTask, ...prev];
       });
-      
+
       // Inicia polling para a nova tarefa se ela estiver pendente ou processando
       if (newTask.status === 'pending' || newTask.status === 'processing') {
         startPollingTask(newTask.task_id);
@@ -157,23 +157,23 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
   const handleCancelTask = async (task: TranscriptionTask) => {
     try {
       await TranscriptionAPI.cancelTask(task.task_id);
-      
+
       // Atualiza o estado local
-      setTasks(prevTasks => 
-        prevTasks.map(t => 
-          t.task_id === task.task_id 
+      setTasks(prevTasks =>
+        prevTasks.map(t =>
+          t.task_id === task.task_id
             ? { ...t, status: 'failed' as TranscriptionStatus, error: 'Tarefa cancelada pelo usuário' }
             : t
         )
       );
-      
+
       // Remove do polling
       setPollingTasks(prev => {
         const newSet = new Set(prev);
         newSet.delete(task.task_id);
         return newSet;
       });
-      
+
     } catch (error) {
       console.error('Erro ao cancelar tarefa:', error);
       setError('Erro ao cancelar tarefa');
@@ -182,25 +182,25 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
 
   const handleDeleteTask = async () => {
     if (!taskToDelete) return;
-    
+
     try {
       await TranscriptionAPI.deleteTask(taskToDelete.task_id, deleteWithFiles);
-      
+
       // Remove a tarefa da lista
-      setTasks(prevTasks => 
+      setTasks(prevTasks =>
         prevTasks.filter(t => t.task_id !== taskToDelete.task_id)
       );
-      
+
       // Remove do polling se estiver ativo
       setPollingTasks(prev => {
         const newSet = new Set(prev);
         newSet.delete(taskToDelete.task_id);
         return newSet;
       });
-      
+
       setShowDeleteModal(false);
       setTaskToDelete(null);
-      
+
     } catch (error) {
       console.error('Erro ao excluir tarefa:', error);
       setError('Erro ao excluir tarefa');
@@ -270,13 +270,13 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
   const filteredAndSortedTasks = tasks
     .filter(task => {
       const matchesSearch = task.filename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           task.task_id.toLowerCase().includes(searchTerm.toLowerCase());
+        task.task_id.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
       return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
       let aValue, bValue;
-      
+
       switch (sortBy) {
         case 'created_at':
           aValue = new Date(a.created_at).getTime();
@@ -291,7 +291,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
           bValue = b.filename.toLowerCase();
           break;
       }
-      
+
       if (sortOrder === 'asc') {
         return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       } else {
@@ -320,7 +320,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
+    <div className="w-full mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
@@ -379,8 +379,8 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                 {tasks.length === 0 ? 'Nenhuma transcrição encontrada' : 'Nenhuma transcrição corresponde aos filtros'}
               </h3>
               <p className="text-gray-600">
-                {tasks.length === 0 
-                  ? 'Faça upload de um arquivo para começar.' 
+                {tasks.length === 0
+                  ? 'Faça upload de um arquivo para começar.'
                   : 'Tente ajustar os filtros de busca.'}
               </p>
             </div>
@@ -389,7 +389,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
               {/* Cabeçalho da tabela */}
               <div className="bg-gray-50 px-6 py-3">
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center text-sm font-medium text-gray-700">
-                  <div 
+                  <div
                     className="md:col-span-3 cursor-pointer hover:text-gray-900 flex items-center space-x-1"
                     onClick={() => handleSort('filename')}
                   >
@@ -398,7 +398,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                       <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                     )}
                   </div>
-                  <div 
+                  <div
                     className="md:col-span-2 cursor-pointer hover:text-gray-900 flex items-center space-x-1"
                     onClick={() => handleSort('status')}
                   >
@@ -407,7 +407,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                       <span className="text-blue-600">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                     )}
                   </div>
-                  <div 
+                  <div
                     className="md:col-span-2 cursor-pointer hover:text-gray-900 flex items-center space-x-1"
                     onClick={() => handleSort('created_at')}
                   >
@@ -426,7 +426,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
               {filteredAndSortedTasks.map((task) => {
                 const isTaskInBatch = isBatchTask(task.task_id);
                 const batchId = getBatchId(task.task_id);
-                
+
                 return (
                   <div key={task.task_id} className={`px-6 py-4 hover:bg-gray-50 ${isTaskInBatch ? 'border-l-4 border-blue-300 bg-blue-50' : ''}`}>
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
@@ -481,7 +481,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
 
                       <div className="md:col-span-1">
                         <span className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                          {(task as TranscriptionTask & { type?: string }).type || (isTaskInBatch ? 'lote' : 'padrão')}
+                          {(task as TranscriptionTask & { type?: string; }).type || (isTaskInBatch ? 'lote' : 'padrão')}
                         </span>
                       </div>
 
@@ -515,7 +515,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                         )}
 
                         {task.status === 'failed' && task.error && (
-                          <div 
+                          <div
                             className="px-3 py-1 bg-red-100 text-red-800 text-xs rounded cursor-help"
                             title={task.error}
                           >
@@ -589,11 +589,11 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
               <AlertTriangle className="w-6 h-6 text-red-600" />
               <h3 className="text-lg font-semibold text-gray-900">Confirmar Exclusão</h3>
             </div>
-            
+
             <p className="text-gray-600 mb-4">
               Tem certeza que deseja excluir a tarefa <strong>{taskToDelete.filename}</strong>?
             </p>
-            
+
             <div className="mb-4">
               <label className="flex items-center space-x-2">
                 <input
@@ -607,7 +607,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
                 </span>
               </label>
             </div>
-            
+
             <div className="flex space-x-3 justify-end">
               <button
                 onClick={closeDeleteModal}
