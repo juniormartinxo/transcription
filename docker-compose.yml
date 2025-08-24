@@ -20,7 +20,7 @@ services:
       - transcription-network
     environment:
       - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
-      - VERSION_MODEL=${VERSION_MODEL:-turbo}
+      - VERSION_MODEL=${VERSION_MODEL:-large-v3}
       - FORCE_CPU=${FORCE_CPU:-true}
       - AUDIOS_DIR=/app/public/audios
       - TRANSCRIPTIONS_DIR=/app/public/transcriptions
@@ -56,17 +56,17 @@ services:
         target: /app/logs
         bind:
           create_host_path: true
-      # Cache volumes
-      - type: volume
-        source: huggingface_cache
+      # Cache volumes (bind mounts to preserve permissions)
+      - type: bind
+        source: ./cache/huggingface
         target: /app/cache/huggingface
-        volume:
-          nocopy: true
-      - type: volume
-        source: torch_cache
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./cache/torch
         target: /app/cache/torch
-        volume:
-          nocopy: true
+        bind:
+          create_host_path: true
       - type: volume
         source: matplotlib_config
         target: /home/appuser/.config/matplotlib
@@ -126,9 +126,5 @@ services:
           memory: 256M
 
 volumes:
-  huggingface_cache:
-    name: transcription_huggingface_cache
-  torch_cache:
-    name: transcription_torch_cache
   matplotlib_config:
     name: transcription_matplotlib_config
