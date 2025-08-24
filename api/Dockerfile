@@ -8,8 +8,10 @@ ARG BUILD_ENV=production
 LABEL maintainer="Transcription Service"
 LABEL description="FastAPI backend for audio/video transcription service"
 
-# Criar usuário não-root
-RUN groupadd -r appuser && useradd -r -g appuser -m appuser
+# Criar usuário não-root com UID/GID do host para evitar problemas de permissão
+ARG USER_ID=1000
+ARG GROUP_ID=1000
+RUN groupadd -g ${GROUP_ID} appuser && useradd -u ${USER_ID} -g appuser -m appuser
 
 # Instalar dependências do sistema
 RUN apt-get update && apt-get install -y \
@@ -19,6 +21,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     libavcodec-extra \
     git \
+    patchelf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -58,6 +61,9 @@ RUN mkdir -p \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
+
+# Aplicar correção do patchelf para ctranslate2
+RUN find /usr/local/lib/python*/site-packages/ -name "*ctranslate2*.so*" -exec patchelf --clear-execstack {} \; 2>/dev/null || true
 
 # Copiar código da aplicação
 COPY src/ src/
