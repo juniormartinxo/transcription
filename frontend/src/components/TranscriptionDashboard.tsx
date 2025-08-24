@@ -91,7 +91,7 @@ const TranscriptionDashboard: React.FC<TranscriptionDashboardProps> = ({ newTask
       } catch (error) {
         console.error('Erro no polling em lote:', error);
       }
-    }, 5000); // Polling a cada 5 segundos para reduzir carga
+    }, pollingTasks.size > 5 ? 10000 : 5000); // Polling mais lento quando há muitas tarefas ativas
 
     return () => clearInterval(interval);
   }, [pollingTasks]);
