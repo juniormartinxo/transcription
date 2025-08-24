@@ -8,10 +8,10 @@ RUN apk add --no-cache libc6-compat curl
 WORKDIR /app
 
 # Copiar arquivos de configuração de dependências
-COPY package*.json ./
+COPY frontend/package*.json ./
 
 # Instalar dependências
-RUN npm ci
+RUN npm install
 
 # Configurar usuário não-root
 RUN addgroup --system --gid 1001 nodejs
