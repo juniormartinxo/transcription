@@ -15,6 +15,8 @@ from src.models.schemas import (
     TranscriptionRequest,
     TranscriptionStatus,
     TranscriptionTask,
+    BatchUploadResponse,
+    BatchUploadTask,
 )
 from src.services.transcription import TranscriptionService
 from src.services.video_extractor import VideoAudioExtractor
@@ -645,4 +647,294 @@ async def get_task_files(
         raise
     except Exception as e:
         logger.error(f"Erro ao obter informações dos arquivos: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/batch-audio", response_model=BatchUploadResponse)
+async def batch_upload_audio(
+    files: List[UploadFile],
+    background_tasks: BackgroundTasks,
+    service: TranscriptionService = Depends(get_transcription_service),
+    include_timestamps: bool = True,
+    include_speaker_diarization: bool = True,
+    output_format: str = "txt",
+    force_cpu: bool = None,
+    version_model: str = None
+):
+    """
+    Upload múltiplo de arquivos de áudio para transcrição em lote
+    """
+    try:
+        if not files:
+            raise HTTPException(
+                status_code=400,
+                detail="Nenhum arquivo foi enviado"
+            )
+        
+        if len(files) > 10:  # Limite de arquivos por lote
+            raise HTTPException(
+                status_code=400,
+                detail="Máximo de 10 arquivos por lote"
+            )
+        
+        # Gera ID do lote
+        batch_id = f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        
+        batch_tasks: List[BatchUploadTask] = []
+        config = service.config
+        
+        # Processa cada arquivo
+        for file in files:
+            batch_task = BatchUploadTask(
+                filename=file.filename,
+                file_size=file.size if hasattr(file, 'size') else 0
+            )
+            
+            try:
+                # Validação do arquivo
+                if not file.filename or not file.file:
+                    batch_task.error = "Arquivo inválido"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Validação do tipo de arquivo
+                file_extension = Path(file.filename).suffix.lower()
+                extension_to_mime = {
+                    '.wav': 'audio/wav',
+                    '.mp3': 'audio/mp3', 
+                    '.ogg': 'audio/ogg',
+                    '.m4a': 'audio/m4a',
+                    '.flac': 'audio/flac',
+                    '.aac': 'audio/aac'
+                }
+                
+                expected_mime = extension_to_mime.get(file_extension)
+                allowed_types = config.allowed_extensions
+                
+                if file.content_type not in allowed_types and expected_mime not in allowed_types:
+                    batch_task.error = f"Tipo de arquivo não suportado: {file.content_type}"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Validação do tamanho do arquivo
+                file.file.seek(0, 2)
+                file_size = file.file.tell()
+                file.file.seek(0)
+                batch_task.file_size = file_size
+                
+                if file_size > config.max_file_size:
+                    batch_task.error = f"Arquivo muito grande: {file_size} bytes"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Cria diretório e salva arquivo
+                os.makedirs(service.config.audios_dir, exist_ok=True)
+                task_id = f"{batch_id}_{len(batch_tasks):03d}_{datetime.now().strftime('%H%M%S')}"
+                
+                audio_subfolder = Path(service.config.audios_dir) / task_id
+                audio_subfolder.mkdir(parents=True, exist_ok=True)
+                audio_path = audio_subfolder / file.filename
+                
+                # Salva o arquivo
+                contents = await file.read()
+                with open(audio_path, "wb") as buffer:
+                    buffer.write(contents)
+                
+                # Cria tarefa de transcrição
+                task = service.create_task(task_id, file.filename)
+                batch_task.task = task
+                batch_task.status = "pending"
+                
+                # Adiciona à fila de processamento em background
+                background_tasks.add_task(
+                    service.process_transcription,
+                    task_id=task_id,
+                    audio_path=str(audio_path),
+                    output_format=output_format,
+                    force_cpu=force_cpu if force_cpu is not None else config.force_cpu,
+                    version_model=version_model or config.version_model,
+                    include_timestamps=include_timestamps,
+                    include_speaker_diarization=include_speaker_diarization
+                )
+                
+                logger.info(f"Arquivo {file.filename} adicionado ao lote {batch_id} como task {task_id}")
+                
+            except Exception as e:
+                logger.error(f"Erro ao processar arquivo {file.filename}: {str(e)}")
+                batch_task.error = str(e)
+                batch_task.status = "failed"
+            
+            batch_tasks.append(batch_task)
+        
+        # Conta arquivos processados
+        successful_files = len([t for t in batch_tasks if t.status != "failed"])
+        
+        response = BatchUploadResponse(
+            batch_id=batch_id,
+            total_files=len(files),
+            tasks=batch_tasks,
+            message=f"Lote processado: {successful_files}/{len(files)} arquivos enviados com sucesso"
+        )
+        
+        return JSONResponse(status_code=202, content=jsonable_encoder(response))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro no upload em lote: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/batch-video", response_model=BatchUploadResponse)
+async def batch_upload_video(
+    files: List[UploadFile],
+    background_tasks: BackgroundTasks,
+    service: TranscriptionService = Depends(get_transcription_service)
+):
+    """
+    Upload múltiplo de arquivos de vídeo para extração de áudio e transcrição em lote
+    """
+    try:
+        if not files:
+            raise HTTPException(
+                status_code=400,
+                detail="Nenhum arquivo foi enviado"
+            )
+        
+        if len(files) > 5:  # Limite menor para vídeos (são maiores)
+            raise HTTPException(
+                status_code=400,
+                detail="Máximo de 5 vídeos por lote"
+            )
+        
+        # Gera ID do lote
+        batch_id = f"batch_video_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.urandom(4).hex()}"
+        
+        batch_tasks: List[BatchUploadTask] = []
+        extractor = VideoAudioExtractor()
+        
+        # Processa cada arquivo
+        for file in files:
+            batch_task = BatchUploadTask(
+                filename=file.filename,
+                file_size=file.size if hasattr(file, 'size') else 0
+            )
+            
+            try:
+                # Validação do arquivo
+                if not file.filename or not file.file:
+                    batch_task.error = "Arquivo de vídeo inválido"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Verifica se é um arquivo de vídeo suportado
+                if not extractor.is_video_file(file.filename):
+                    batch_task.error = f"Formato de vídeo não suportado"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Validação do tamanho do arquivo
+                file.file.seek(0, 2)
+                file_size = file.file.tell()
+                file.file.seek(0)
+                batch_task.file_size = file_size
+                
+                max_size = 500 * 1024 * 1024  # 500MB para vídeos
+                if file_size > max_size:
+                    batch_task.error = f"Arquivo muito grande: {file_size} bytes (máximo: {max_size})"
+                    batch_task.status = "failed"
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Cria diretórios
+                videos_dir = Path(service.config.audios_dir).parent / "videos"
+                os.makedirs(videos_dir, exist_ok=True)
+                os.makedirs(service.config.audios_dir, exist_ok=True)
+                
+                # Gera nomes únicos para os arquivos
+                task_id = f"{batch_id}_{len(batch_tasks):03d}_{datetime.now().strftime('%H%M%S')}"
+                video_path = videos_dir / f"{task_id}_{file.filename}"
+                
+                # Cria subpasta para o áudio extraído
+                audio_subfolder = Path(service.config.audios_dir) / task_id
+                audio_subfolder.mkdir(parents=True, exist_ok=True)
+                
+                audio_filename = f"{Path(file.filename).stem}.wav"
+                audio_path = audio_subfolder / audio_filename
+                
+                # Salva o arquivo de vídeo temporariamente
+                contents = await file.read()
+                with open(video_path, "wb") as buffer:
+                    buffer.write(contents)
+                
+                logger.info(f"Vídeo salvo: {video_path}")
+                
+                # Extrai o áudio
+                success = extractor.extract_audio(str(video_path), str(audio_path))
+                
+                if not success:
+                    batch_task.error = "Falha na extração do áudio do vídeo"
+                    batch_task.status = "failed"
+                    # Remove arquivo temporário
+                    try:
+                        os.remove(video_path)
+                    except:
+                        pass
+                    batch_tasks.append(batch_task)
+                    continue
+                
+                # Remove o arquivo de vídeo temporário
+                try:
+                    os.remove(video_path)
+                    logger.info(f"Arquivo de vídeo temporário removido: {video_path}")
+                except Exception as e:
+                    logger.warning(f"Não foi possível remover o arquivo temporário: {e}")
+                
+                # Cria tarefa principal (vamos usar apenas a transcrição limpa para o lote)
+                task = service.create_task(f"{task_id}_limpa", audio_filename)
+                batch_task.task = task
+                batch_task.status = "pending"
+                
+                # Adiciona tarefa de transcrição em background (apenas versão limpa)
+                background_tasks.add_task(
+                    service.process_transcription,
+                    task_id=f"{task_id}_limpa",
+                    audio_path=str(audio_path),
+                    output_format="txt",
+                    force_cpu=service.config.force_cpu,
+                    version_model=service.config.version_model,
+                    include_timestamps=False,
+                    include_speaker_diarization=False,
+                    base_task_id=task_id,
+                    transcription_suffix="limpa"
+                )
+                
+                logger.info(f"Vídeo {file.filename} processado e adicionado ao lote {batch_id}")
+                
+            except Exception as e:
+                logger.error(f"Erro ao processar vídeo {file.filename}: {str(e)}")
+                batch_task.error = str(e)
+                batch_task.status = "failed"
+            
+            batch_tasks.append(batch_task)
+        
+        # Conta arquivos processados
+        successful_files = len([t for t in batch_tasks if t.status != "failed"])
+        
+        response = BatchUploadResponse(
+            batch_id=batch_id,
+            total_files=len(files),
+            tasks=batch_tasks,
+            message=f"Lote de vídeos processado: {successful_files}/{len(files)} arquivos enviados com sucesso"
+        )
+        
+        return JSONResponse(status_code=202, content=jsonable_encoder(response))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erro no upload em lote de vídeos: {e}")
         raise HTTPException(status_code=500, detail=str(e))
