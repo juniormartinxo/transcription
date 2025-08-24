@@ -1,6 +1,4 @@
 # docker-compose.prod.yml - Configuração para Produção
-version: '3.8'
-
 networks:
   transcription-network:
     driver: bridge
