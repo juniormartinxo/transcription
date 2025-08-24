@@ -15,11 +15,20 @@ load_dotenv()
 
 class ModelSize(str, Enum):
     TINY = "tiny"
+    TINY_EN = "tiny.en"
     BASE = "base"
+    BASE_EN = "base.en"
     SMALL = "small"
+    SMALL_EN = "small.en"
     MEDIUM = "medium"
+    MEDIUM_EN = "medium.en"
     LARGE = "large"
-    TURBO = "turbo"
+    LARGE_V1 = "large-v1"
+    LARGE_V2 = "large-v2"
+    LARGE_V3 = "large-v3"
+    DISTIL_LARGE_V2 = "distil-large-v2"
+    DISTIL_MEDIUM_EN = "distil-medium.en"
+    DISTIL_SMALL_EN = "distil-small.en"
 
 class AppConfig(BaseModel):
     """
@@ -28,7 +37,7 @@ class AppConfig(BaseModel):
     hf_token: str
     audios_dir: Path = Path("../public/audios")
     transcriptions_dir: Path = Path("../public/transcriptions")
-    version_model: ModelSize = ModelSize.TURBO  # Mudado de version_model para version_model
+    version_model: ModelSize = ModelSize.LARGE_V3  # Using latest large model as default
     force_cpu: bool = True
     max_file_size: int = 100 * 1024 * 1024  # 100MB
     allowed_extensions: Set[str] = {"audio/mp3", "audio/wav", "audio/ogg", "audio/m4a", "audio/flac", "audio/aac", "audio/x-wav"}
@@ -47,11 +56,16 @@ class AppConfig(BaseModel):
                 "Configure a variável HUGGING_FACE_HUB_TOKEN no arquivo .env"
             )
         
+        # Handle legacy 'turbo' model name
+        model_env = os.getenv('VERSION_MODEL', 'large-v3')
+        if model_env == 'turbo':
+            model_env = 'large-v3'  # Map turbo to large-v3
+        
         return cls(
             hf_token=hf_token,
             audios_dir=Path(os.getenv('AUDIOS_DIR', '../public/audios')),
             transcriptions_dir=Path(os.getenv('TRANSCRIPTIONS_DIR', '../public/transcriptions')),
-            version_model=os.getenv('VERSION_MODEL', 'turbo'),
+            version_model=model_env,
             force_cpu=os.getenv('FORCE_CPU', 'false').lower() == 'true'
         )
         
