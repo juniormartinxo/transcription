@@ -1,0 +1,169 @@
+# docker-compose.dev.yml - Development with Hot Reload
+networks:
+  transcription-network:
+    driver: bridge
+
+services:
+  # Backend FastAPI with Hot Reload
+  backend:
+    build: 
+      context: ./api
+      dockerfile: Dockerfile.dev
+      args:
+        USER_ID: ${USER_ID:-1000}
+        GROUP_ID: ${GROUP_ID:-1000}
+    container_name: transcription-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    networks:
+      - transcription-network
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      - VERSION_MODEL=${VERSION_MODEL:-turbo}
+      - FORCE_CPU=${FORCE_CPU:-true}
+      - AUDIOS_DIR=/app/public/audios
+      - TRANSCRIPTIONS_DIR=/app/public/transcriptions
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FILE=/app/logs/app.log
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/cache/huggingface
+      - MPLCONFIGDIR=/home/appuser/.config/matplotlib
+      - HOME=/home/appuser
+      - XDG_CACHE_HOME=/home/appuser/.cache
+      - XDG_CONFIG_HOME=/home/appuser/.config
+      - CTRANSLATE2_SUPPRESS_WARNING=1
+      - OMP_NUM_THREADS=1
+      # Development specific
+      - DEVELOPMENT=true
+    volumes:
+      # Data volumes
+      - type: bind
+        source: ./api/public/audios
+        target: /app/public/audios
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./api/public/transcriptions
+        target: /app/public/transcriptions
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./api/public/videos
+        target: /app/public/videos
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./logs
+        target: /app/logs
+        bind:
+          create_host_path: true
+      
+      # Development volumes - Hot Reload
+      - type: bind
+        source: ./api/src
+        target: /app/src
+      - type: bind
+        source: ./api/main.py
+        target: /app/main.py
+      - type: bind
+        source: ./api/requirements.txt
+        target: /app/requirements.txt
+      
+      # Cache volumes
+      - type: volume
+        source: huggingface_cache_dev
+        target: /app/cache/huggingface
+      - type: volume
+        source: torch_cache_dev
+        target: /app/cache/torch
+      - type: volume
+        source: matplotlib_config_dev
+        target: /home/appuser/.config/matplotlib
+    
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "src/", "--reload-dir", "./"]
+    
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    init: true
+
+  # Frontend Next.js with Hot Reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: transcription-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - transcription-network
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_TELEMETRY_DISABLED=1
+      - WATCHPACK_POLLING=true  # For file watching inside container
+    volumes:
+      # Development volumes - Hot Reload
+      - type: bind
+        source: ./frontend/src
+        target: /app/src
+      - type: bind
+        source: ./frontend/package.json
+        target: /app/package.json
+      - type: bind
+        source: ./frontend/package-lock.json
+        target: /app/package-lock.json
+      - type: bind
+        source: ./frontend/next.config.ts
+        target: /app/next.config.ts
+      - type: bind
+        source: ./frontend/tailwind.config.ts
+        target: /app/tailwind.config.ts
+      - type: bind
+        source: ./frontend/tsconfig.json
+        target: /app/tsconfig.json
+      - type: bind
+        source: ./frontend/postcss.config.mjs
+        target: /app/postcss.config.mjs
+      # Exclude node_modules to avoid permission issues
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy
+    command: ["npm", "run", "dev"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+volumes:
+  huggingface_cache_dev:
+    name: transcription_huggingface_cache_dev
+  torch_cache_dev:
+    name: transcription_torch_cache_dev
+  matplotlib_config_dev:
+    name: transcription_matplotlib_config_dev
