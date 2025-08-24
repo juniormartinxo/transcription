@@ -1,6 +1,4 @@
 # docker-compose.yml - Full Stack Application
-version: '3.8'
-
 networks:
   transcription-network:
     driver: bridge
