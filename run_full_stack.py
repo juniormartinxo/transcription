@@ -83,8 +83,19 @@ def start_backend() -> subprocess.Popen:
     env.setdefault("TRANSCRIPTIONS_DIR", "../public/transcriptions")
     env.setdefault("LOG_FILE", "../logs/app.log")
     
+    # Usa uvicorn com hot reload
     return subprocess.Popen(
-        [python_cmd, 'main.py'],
+        [python_cmd, '-m', 'uvicorn', 'main:app', 
+         '--host', '0.0.0.0', 
+         '--port', '8000',
+         '--reload',
+         '--reload-dir', 'src/',
+         '--reload-dir', './',
+         '--reload-exclude', '*.pyc',
+         '--reload-exclude', '__pycache__',
+         '--reload-exclude', '*.log',
+         '--reload-exclude', 'venv/',
+         '--reload-exclude', '.env'],
         cwd='api',
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
