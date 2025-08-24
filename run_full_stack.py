@@ -23,12 +23,12 @@ def check_node_installed() -> bool:
 
 def get_venv_python():
     """Retorna o caminho do Python do ambiente virtual se existir"""
-    venv_path = Path("venv")
+    venv_path = Path("api/venv")
     if venv_path.exists():
         if sys.platform == "win32":
-            python_path = "venv/Scripts/python.exe"
+            python_path = "api/venv/Scripts/python.exe"
         else:
-            python_path = "venv/bin/python"
+            python_path = "api/venv/bin/python"
         
         if Path(python_path).exists():
             return python_path
@@ -37,25 +37,19 @@ def get_venv_python():
 
 def setup_backend_environment() -> bool:
     """Configura ambiente do backend usando run_venv.py se necessário"""
-    venv_path = Path("venv")
-    requirements_path = Path("requirements.txt")
+    venv_path = Path("api/venv")
+    requirements_path = Path("api/requirements.txt")
     
     if not venv_path.exists() and requirements_path.exists():
         print("🐍 Configurando ambiente virtual do backend...")
         try:
-            # Executa apenas a parte de setup do run_venv.py
-            from run_venv import check_venv, install_dependencies, create_directories, check_env_file
-            
-            check_venv()
-            create_directories()
-            install_dependencies()
-            check_env_file()
-            
+            # Executa run_venv.py do diretório api
+            subprocess.run([sys.executable, "api/run_venv.py"], check=True)
             print("✅ Ambiente backend configurado")
             return True
         except Exception as e:
             print(f"❌ Erro ao configurar backend: {e}")
-            print("💡 Tente executar primeiro: python run_venv.py")
+            print("💡 Tente executar primeiro: cd api && python run_venv.py")
             return False
     
     return True
@@ -85,13 +79,13 @@ def start_backend() -> subprocess.Popen:
     
     # Configurar variáveis de ambiente
     env = os.environ.copy()
-    env.setdefault("AUDIOS_DIR", "./public/audios")
-    env.setdefault("TRANSCRIPTIONS_DIR", "./public/transcriptions")
-    env.setdefault("LOG_FILE", "./logs/app.log")
+    env.setdefault("AUDIOS_DIR", "../public/audios")
+    env.setdefault("TRANSCRIPTIONS_DIR", "../public/transcriptions")
+    env.setdefault("LOG_FILE", "../logs/app.log")
     
     return subprocess.Popen(
         [python_cmd, 'main.py'],
-        cwd=os.getcwd(),
+        cwd='api',
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         universal_newlines=True,
